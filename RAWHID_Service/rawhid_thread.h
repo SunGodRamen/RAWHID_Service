@@ -6,6 +6,7 @@
 #include <string.h>
 #include "rawhid.h"
 #include "interthread_comm.h"
+#include "logger.h"
 
 DWORD WINAPI rawhid_device_thread(LPVOID device_info);
 

@@ -10,6 +10,8 @@
 
 SharedData sharedData;
 
+char* LOG_FILE = "C:\\Users\\avons\\Code\\Anatomic\\RAWHID_Service\\logs\\RAWHID_Service.log";
+
 int main() {
     hid_usage_info device_info = {
         .vendor_id = VENDOR_ID,
@@ -22,6 +24,8 @@ int main() {
         .ip = SERVER_IP,
         .port = SERVER_PORT
     };
+
+    init_logger(LOG_FILE);
 
     // Initialize the mutex and the event
     sharedData.mutex = CreateMutex(NULL, FALSE, NULL);
@@ -56,6 +60,8 @@ int main() {
     // Cleanup
     CloseHandle(sharedData.mutex);
     CloseHandle(sharedData.data_ready_event);
+
+    close_logger();
 
     return 0;
 }

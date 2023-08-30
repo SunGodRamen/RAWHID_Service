@@ -7,7 +7,7 @@ DWORD WINAPI rawhid_device_thread(LPVOID device_info) {
         return -1;
     }
 
-    hid_device* handle = get_handle(&device_info);
+    hid_device* handle = get_handle(device_info);
     open_usage_path(&device_info, &handle);
 
     if (handle) {
