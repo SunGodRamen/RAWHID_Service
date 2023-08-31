@@ -9,5 +9,6 @@
 #include "logger.h"
 
 DWORD WINAPI rawhid_device_thread(LPVOID device_info);
+void send_ping(hid_device* handle);
 
 #endif

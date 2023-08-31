@@ -149,6 +149,7 @@
     <ClCompile Include="tcp_client_thread.c" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="config.h" />
     <ClInclude Include="logger.h" />
     <ClInclude Include="main.h" />
     <ClInclude Include="message_protocol.h" />
