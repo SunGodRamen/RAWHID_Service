@@ -7,18 +7,21 @@
  * @return A handle to the HID device, or NULL if an error occurs.
  */
 hid_device* get_handle(hid_usage_info* usage_info) {
+    // Check if the usage_info argument is NULL
     if (!usage_info) {
         write_log(_ERROR, "Usage info is NULL");
-        return NULL;
+        return NULL; // Return NULL to indicate failure
     }
 
+    // Open the HID device using vendor and product IDs
     hid_device* handle = hid_open(usage_info->vendor_id, usage_info->product_id, NULL);
     if (!handle) {
         write_log_format(_ERROR, "Failed to get handle for Vendor ID: 0x%x, Product ID: 0x%x",
             usage_info->vendor_id, usage_info->product_id);
-        return NULL;
+        return NULL; // Return NULL to indicate failure
     }
 
+    // Log success and return the handle
     write_log_format(_INFO, "Successfully got handle for Vendor ID: 0x%x, Product ID: 0x%x",
         usage_info->vendor_id, usage_info->product_id);
     return handle;
@@ -31,16 +34,19 @@ hid_device* get_handle(hid_usage_info* usage_info) {
  * @param handle Double pointer to the handle where the HID device handle will be stored.
  */
 void open_usage_path(hid_usage_info* usage_info, hid_device** handle) {
+    // Check for invalid arguments
     if (!handle || !usage_info) {
         write_log(_ERROR, "Invalid arguments");
         return;
     }
 
+    // Check if handle is NULL
     if (*handle == NULL) {
         write_log(_ERROR, "No handle to open");
         return;
     }
 
+    // Enumerate HID devices using vendor and product IDs
     struct hid_device_info* enum_device_info = hid_enumerate(usage_info->vendor_id, usage_info->product_id);
     if (!enum_device_info) {
         write_log_format(_ERROR, "Failed to enumerate devices for Vendor ID: 0x%x, Product ID: 0x%x",
@@ -48,10 +54,12 @@ void open_usage_path(hid_usage_info* usage_info, hid_device** handle) {
         return;
     }
 
+    // Loop through the enumerated devices and open the one that matches the usage page and usage
     for (; enum_device_info != NULL; enum_device_info = enum_device_info->next) {
         if (enum_device_info->usage_page == usage_info->usage_page &&
             enum_device_info->usage == usage_info->usage) {
 
+            // Open the device by its path
             *handle = hid_open_path(enum_device_info->path);
             if (*handle) {
                 write_log_format(_INFO, "Successfully opened device with Usage Page: 0x%x, Usage: 0x%x",
@@ -65,6 +73,7 @@ void open_usage_path(hid_usage_info* usage_info, hid_device** handle) {
         }
     }
 
+    // Free the enumeration list
     hid_free_enumeration(enum_device_info);
 }
 
@@ -77,15 +86,20 @@ void open_usage_path(hid_usage_info* usage_info, hid_device** handle) {
  * @return The number of bytes written, or -1 if an error occurs.
  */
 int write_to_handle(hid_device** handle, unsigned char* message, size_t size) {
+    // Check for invalid arguments
     if (*handle == NULL || !message) {
         write_log(_ERROR, "Invalid arguments");
-        return -1;
+        return -1; // Return -1 to indicate failure
     }
+
+    // Log the writing action
     write_log(_DEBUG, "writing to handle", message);
+
+    // Write the message to the HID device
     int result = hid_write(*handle, message, size);
     if (result < 0) {
         write_log(_ERROR, "Failed to write to handle");
     }
 
-    return result;
+    return result; // Return the number of bytes written or -1 if an error occurs
 }

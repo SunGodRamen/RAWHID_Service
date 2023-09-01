@@ -8,28 +8,32 @@
  * @return The number of bytes read, or -1 on error.
  */
 int read_message_from_server(SOCKET serverSocket, char* buffer) {
+    // Check for null buffer
     if (!buffer) {
         write_log(_ERROR, "Buffer is NULL");
         return -1;
     }
 
-    int totalBytesRead = 0;
-    int bytesRead = 0;
+    int totalBytesRead = 0;  // Track the total number of bytes read
+    int bytesRead = 0;       // Bytes read in a single recv call
 
+    // Loop until the entire message has been read
     while (totalBytesRead < MESSAGE_SIZE_BYTES) {
         bytesRead = recv(serverSocket, buffer + totalBytesRead, MESSAGE_SIZE_BYTES - totalBytesRead, 0);
 
+        // Check for socket errors
         if (bytesRead == SOCKET_ERROR && WSAGetLastError() != 10053) {
             write_log_format(_ERROR, "TCP: Error occurred while reading from socket. Error Code: %d", WSAGetLastError());
             return -1;
         }
 
+        // Check for server disconnection
         if (bytesRead == 0) {
             write_log(_ERROR, "TCP: Server disconnected before sending full message.");
             return totalBytesRead;
         }
 
-        totalBytesRead += bytesRead;
+        totalBytesRead += bytesRead;  // Update the total bytes read
     }
 
     return totalBytesRead;
@@ -42,19 +46,22 @@ int read_message_from_server(SOCKET serverSocket, char* buffer) {
  * @return A valid socket to the server, or INVALID_SOCKET on failure.
  */
 SOCKET init_client(tcp_socket_info* server_info) {
-    WSADATA wsaData;
+    WSADATA wsaData;  // WinSock Data
 
+    // Initialize WinSock
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
         write_log_format(_ERROR, "TCP: Failed to initialize WinSock. Error Code: %d", WSAGetLastError());
         return INVALID_SOCKET;
     }
 
+    // Check for null server info
     if (!server_info) {
         write_log(_ERROR, "Server information is NULL");
         WSACleanup();
         return INVALID_SOCKET;
     }
 
+    // Create the client socket
     SOCKET clientSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (clientSocket == INVALID_SOCKET) {
         write_log_format(_ERROR, "TCP: Failed to create socket. Error Code: %d; Server IP: %s, Port: %d",
@@ -63,9 +70,10 @@ SOCKET init_client(tcp_socket_info* server_info) {
         return INVALID_SOCKET;
     }
 
-    struct sockaddr_in serverAddr;
+    struct sockaddr_in serverAddr;  // Server address
     serverAddr.sin_family = AF_INET;
 
+    // Convert IP address from string to binary
     if (inet_pton(AF_INET, server_info->ip, &(serverAddr.sin_addr)) <= 0) {
         write_log_format(_ERROR, "TCP: Invalid IP address or error in inet_pton. Error Code: %d; Server IP: %s, Port: %d",
             WSAGetLastError(), server_info->ip, server_info->port);
@@ -73,8 +81,10 @@ SOCKET init_client(tcp_socket_info* server_info) {
         return INVALID_SOCKET;
     }
 
+    // Set server port
     serverAddr.sin_port = htons(server_info->port);
 
+    // Connect to the server
     if (connect(clientSocket, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) {
         write_log_format(_ERROR, "TCP: Connect failed. Error Code: %d; Server IP: %s, Port: %d",
             WSAGetLastError(), server_info->ip, server_info->port);
@@ -82,7 +92,7 @@ SOCKET init_client(tcp_socket_info* server_info) {
         return INVALID_SOCKET;
     }
 
-    return clientSocket;
+    return clientSocket;  // Return the connected socket
 }
 
 /**
@@ -93,11 +103,13 @@ SOCKET init_client(tcp_socket_info* server_info) {
  * @param dataLength The length of the data in bytes.
  */
 int send_to_server(SOCKET serverSocket, const char* data, int dataLength) {
+    // Check for null data or zero length
     if (!data || dataLength <= 0) {
         write_log(_ERROR, "Invalid data to send");
-        return -1; // Fixed a typo, added a semicolon
+        return -1;
     }
 
+    // Send the data
     if (send(serverSocket, data, dataLength, 0) == SOCKET_ERROR) {
         write_log_format(_ERROR, "Failed to send data. Error Code: %d", WSAGetLastError());
         return -1;
@@ -114,8 +126,11 @@ int send_to_server(SOCKET serverSocket, const char* data, int dataLength) {
  * @param serverSocket The server socket to close.
  */
 void cleanup_client(SOCKET serverSocket) {
+    // Close the socket if it's valid
     if (serverSocket != INVALID_SOCKET) {
         closesocket(serverSocket);
     }
+
+    // Cleanup WinSock
     WSACleanup();
 }
