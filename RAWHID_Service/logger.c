@@ -80,6 +80,37 @@ void write_log_format(LogLevel level, const char* format, ...) {
 }
 
 /**
+ * Converts a byte array to a hexadecimal string.
+ *
+ * @param data The byte array to convert.
+ * @param data_len The length of the byte array.
+ * @param out_str The output buffer for the hexadecimal string.
+ * @param out_str_size The size of the output buffer.
+ */
+void bytes_to_hex_string(const unsigned char* data, size_t data_len, char* out_str, size_t out_str_size) {
+    const char* hex_digits = "0123456789ABCDEF";
+    size_t j = 0;
+    for (size_t i = 0; i < data_len && j < out_str_size - 2; ++i) {
+        out_str[j++] = hex_digits[(data[i] >> 4) & 0x0F];
+        out_str[j++] = hex_digits[(data[i] & 0x0F)];
+    }
+    out_str[j] = '\0';  // Null-terminate the string
+}
+
+/**
+ * Logs a byte array as a hexadecimal string.
+ *
+ * @param level The logging level.
+ * @param data The byte array to log.
+ * @param data_len The length of the byte array.
+ */
+void write_log_byte_array(LogLevel level, const unsigned char* data, size_t data_len) {
+    char buffer[BUFFER_SIZE]; // Make sure BUFFER_SIZE is large enough to hold the hex string
+    bytes_to_hex_string(data, data_len, buffer, sizeof(buffer));
+    write_to_log_file(level, buffer);
+}
+
+/**
  * Logs an unsigned 64-bit integer in decimal format.
  *
  * @param level The logging level.

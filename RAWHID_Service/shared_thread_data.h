@@ -7,7 +7,7 @@
 
 typedef struct {
     unsigned char message_to_tcp[MESSAGE_SIZE_BITS];
-    uint64_t message_from_tcp;
+    unsigned char  message_from_tcp[MESSAGE_SIZE_BITS];
     HANDLE mutex;
     HANDLE data_ready_event;
 } shared_thread_data;

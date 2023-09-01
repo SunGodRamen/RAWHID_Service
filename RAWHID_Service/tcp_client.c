@@ -8,6 +8,7 @@
  * @return The number of bytes read, or -1 on error.
  */
 int read_message_from_server(SOCKET serverSocket, char* buffer) {
+    write_log(_DEBUG, "Entering read_message_from_server");
     // Check for null buffer
     if (!buffer) {
         write_log(_ERROR, "Buffer is NULL");
@@ -36,6 +37,8 @@ int read_message_from_server(SOCKET serverSocket, char* buffer) {
         totalBytesRead += bytesRead;  // Update the total bytes read
     }
 
+    write_log_format(_DEBUG, "Read %d bytes from server", totalBytesRead);
+    write_log(_DEBUG, "Exiting read_message_from_server");
     return totalBytesRead;
 }
 
@@ -46,6 +49,8 @@ int read_message_from_server(SOCKET serverSocket, char* buffer) {
  * @return A valid socket to the server, or INVALID_SOCKET on failure.
  */
 SOCKET init_client(tcp_socket_info* server_info) {
+    write_log(_DEBUG, "Entering init_client");
+
     WSADATA wsaData;  // WinSock Data
 
     // Initialize WinSock
@@ -92,6 +97,8 @@ SOCKET init_client(tcp_socket_info* server_info) {
         return INVALID_SOCKET;
     }
 
+    write_log(_INFO, "Successfully connected to the server");
+
     return clientSocket;  // Return the connected socket
 }
 
@@ -103,6 +110,7 @@ SOCKET init_client(tcp_socket_info* server_info) {
  * @param dataLength The length of the data in bytes.
  */
 int send_to_server(SOCKET serverSocket, const char* data, int dataLength) {
+    write_log(_DEBUG, "Entering send_to_server");
     // Check for null data or zero length
     if (!data || dataLength <= 0) {
         write_log(_ERROR, "Invalid data to send");
@@ -115,7 +123,7 @@ int send_to_server(SOCKET serverSocket, const char* data, int dataLength) {
         return -1;
     }
 
-    write_log_format(_DEBUG, "Sending to tcp server: %s", data);
+    write_log_format(_DEBUG, "Sent %d bytes to server: %s", dataLength, data);
 
     return 0;
 }
@@ -126,6 +134,7 @@ int send_to_server(SOCKET serverSocket, const char* data, int dataLength) {
  * @param serverSocket The server socket to close.
  */
 void cleanup_client(SOCKET serverSocket) {
+    write_log(_DEBUG, "Entering cleanup_client");
     // Close the socket if it's valid
     if (serverSocket != INVALID_SOCKET) {
         closesocket(serverSocket);
@@ -133,4 +142,6 @@ void cleanup_client(SOCKET serverSocket) {
 
     // Cleanup WinSock
     WSACleanup();
+    write_log(_INFO, "Client resources cleaned up");
+    write_log(_DEBUG, "Exiting cleanup_client");
 }

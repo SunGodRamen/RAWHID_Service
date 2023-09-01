@@ -11,9 +11,10 @@ void send_ping(hid_device* handle);
  * @return 0 on successful execution, -1 on failure.
  */
 DWORD WINAPI rawhid_device_thread(LPVOID thread_config) {
+    write_log(_INFO, "Entered rawhid_device_thread.");
     int ret = 0; // Variable to store the return status
     hid_device* handle = NULL; // Handle for the HID device
-    unsigned char message[MESSAGE_SIZE_BITS] = { 0 }; // Message buffer
+    unsigned char message[MESSAGE_SIZE_BITS]; // Message buffer
 
     // Cast thread_config to its proper type
     hid_thread_config* config = (hid_thread_config*)thread_config;
@@ -26,7 +27,7 @@ DWORD WINAPI rawhid_device_thread(LPVOID thread_config) {
     }
 
     // Log Vendor ID and Product ID
-    write_log_format(_INFO, "Vendor ID: 0x%x, Product ID: 0x%x", config->device_info->vendor_id, config->device_info->product_id);
+    write_log_format(_INFO, "Initializing HIDAPI for Vendor ID: 0x%x, Product ID: 0x%x", config->device_info->vendor_id, config->device_info->product_id);
 
     // Initialize the HID API
     if (hid_init()) {
@@ -44,6 +45,8 @@ DWORD WINAPI rawhid_device_thread(LPVOID thread_config) {
         goto cleanup;
     }
 
+    write_log(_INFO, "Device opened successfully.");
+    
     // Set the device to non-blocking mode
     hid_set_nonblocking(handle, true);
 
@@ -61,9 +64,14 @@ DWORD WINAPI rawhid_device_thread(LPVOID thread_config) {
 
         // If read is successful
         if (read_status > 0) {
-            write_log(_DEBUG, "hid read", message);
+            // Log the byte array using your new function
+            write_log_byte_array(_DEBUG, message, read_status);
+
+            // Set the message to be sent over TCP
             set_message_to_tcp(shared_data, message, sizeof(message));
-            send_ping(handle); // Send a ping message
+
+            // Send a ping message
+            send_ping(handle);
         }
     }
 
@@ -75,6 +83,8 @@ cleanup: // Cleanup label for resource freeing and exit
     if (config) {
         free(config);
     }
+
+    write_log(_INFO, "Exiting rawhid_device_thread.");
     return ret;
 }
 
@@ -84,6 +94,7 @@ cleanup: // Cleanup label for resource freeing and exit
  * @param handle The handle to the HID device.
  */
 void send_ping(hid_device* handle) {
+    write_log(_INFO, "Preparing to send ping.");
     // Validate the device handle
     if (!handle) {
         write_log(_ERROR, "Handle is NULL, cannot send ping");
@@ -96,5 +107,8 @@ void send_ping(hid_device* handle) {
     // Attempt to send the ping message
     if (write_to_handle(handle, ping, sizeof(ping)) < 0) {
         write_log_format(_ERROR, "Failed to send ping: %s", hid_error(handle));
+    }
+    else {
+        write_log(_INFO, "Ping sent successfully.");
     }
 }

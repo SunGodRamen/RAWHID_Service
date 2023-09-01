@@ -13,6 +13,8 @@ hid_device* get_handle(hid_usage_info* usage_info) {
         return NULL; // Return NULL to indicate failure
     }
 
+    write_log_format(_INFO, "Attempting to open HID device with Vendor ID: 0x%x, Product ID: 0x%x",
+        usage_info->vendor_id, usage_info->product_id);
     // Open the HID device using vendor and product IDs
     hid_device* handle = hid_open(usage_info->vendor_id, usage_info->product_id, NULL);
     if (!handle) {
@@ -46,6 +48,8 @@ void open_usage_path(hid_usage_info* usage_info, hid_device** handle) {
         return;
     }
 
+    write_log_format(_INFO, "Enumerating HID devices for Vendor ID: 0x%x, Product ID: 0x%x",
+        usage_info->vendor_id, usage_info->product_id);
     // Enumerate HID devices using vendor and product IDs
     struct hid_device_info* enum_device_info = hid_enumerate(usage_info->vendor_id, usage_info->product_id);
     if (!enum_device_info) {
@@ -93,7 +97,7 @@ int write_to_handle(hid_device** handle, unsigned char* message, size_t size) {
     }
 
     // Log the writing action
-    write_log(_DEBUG, "writing to handle", message);
+    write_log_format(_DEBUG, "Attempting to write %d bytes to handle", size);
 
     // Write the message to the HID device
     int result = hid_write(handle, message, size);

@@ -3,7 +3,7 @@
 // Define constants for maximum number of timeout attempts, confirmation message type, and buffer size
 #define MAX_TIMEOUT_COUNTER 10  
 #define CONFIRMATION_TYPE CONFIRM_MESSAGE  
-#define BUFFER_SIZE sizeof(uint64_t)  
+#define BUFFER_SIZE MESSAGE_SIZE_BITS
 
 /**
  * Thread function for handling TCP client operations.
@@ -13,6 +13,8 @@
  * @return 0 on success, error code otherwise
  */
 DWORD WINAPI tcp_client_thread(LPVOID thread_config) {
+    write_log(_INFO, "TCP client thread started.");
+
     int ret = 0;  // Return code
     SOCKET clientSocket = INVALID_SOCKET;  // Initialize socket to INVALID_SOCKET
     client_thread_config* config = (client_thread_config*)thread_config;  // Cast the void pointer to the expected struct type
@@ -25,6 +27,7 @@ DWORD WINAPI tcp_client_thread(LPVOID thread_config) {
     }
 
     // Initialize the client socket
+    write_log(_INFO, "Initializing client socket.");
     clientSocket = init_client(config->server_config);
     if (clientSocket == INVALID_SOCKET) {
         write_log(_ERROR, "Failed to initialize client socket.");
@@ -36,6 +39,7 @@ DWORD WINAPI tcp_client_thread(LPVOID thread_config) {
     shared_thread_data* shared_data = config->shared_data;  // Pointer to the shared data
 
     // Main client operation loop
+    write_log(_INFO, "Entering main client operation loop.");
     while (true) {
         write_log(_DEBUG, "Waiting for data ready event.");
         if (WaitForSingleObject(shared_data->data_ready_event, INFINITE) != WAIT_OBJECT_0) {
@@ -53,22 +57,28 @@ DWORD WINAPI tcp_client_thread(LPVOID thread_config) {
 
 
         // Read the message to send to TCP server from the shared data
-        uint64_t request = shared_data->message_to_tcp;
-        if (send_to_server(clientSocket, (const char*)&request, BUFFER_SIZE) == SOCKET_ERROR) {
+        unsigned char request[MESSAGE_SIZE_BITS];  // <--- Changed to unsigned char array
+        memcpy(request, shared_data->message_to_tcp, MESSAGE_SIZE_BITS);  // Assuming message_to_tcp is of type unsigned char[]
+
+        // Log the message that will be sent to the server
+        write_log(_DEBUG, "Preparing to send data to TCP server.");
+
+        if (send_to_server(clientSocket, (const char*)request, BUFFER_SIZE) == SOCKET_ERROR) {
             write_log(_ERROR, "Failed to send data to the server.");
-            ret = -1;  // Update return code to indicate error
+            ret = -1;
             goto cleanup;
         }
 
         write_log_format(_DEBUG, "Message sent to server, awaiting response.", (const char*)request);
 
-        uint64_t response_data = 0;
+        unsigned char response_data[MESSAGE_SIZE_BITS];
         MessageType response_type;
         int timeoutCounter = 0;  // Counter for timeout attempts
 
         // Loop to read and interpret messages from the server
         while (true) {
-            int bytesRead = read_message_from_server(clientSocket, (char*)&response_data);
+            int bytesRead = read_message_from_server(clientSocket, (char*)response_data);
+            write_log_format(_INFO, "Received %d bytes from server.", bytesRead);
             if (bytesRead == SOCKET_ERROR) {
                 write_log(_ERROR, "An error occurred while reading from the server.");
                 ret = -1;  // Update return code to indicate error
@@ -98,6 +108,7 @@ DWORD WINAPI tcp_client_thread(LPVOID thread_config) {
             // Loop to receive remaining bytes from server
             while (totalBytesRead < BUFFER_SIZE && timeoutCounter < MAX_TIMEOUT_COUNTER) {
                 int bytesRead = read_message_from_server(clientSocket, (char*)&response_data);
+                write_log_format(_INFO, "Received %d bytes from server.", bytesRead);
                 if (bytesRead > 0) {
                     totalBytesRead += bytesRead;
                 }
@@ -111,8 +122,13 @@ DWORD WINAPI tcp_client_thread(LPVOID thread_config) {
                 }
             }
 
+            // Log the message received from the server
+            write_log(_DEBUG, "Received message from TCP server", response_data);
+
             // Update shared data and release mutex
-            shared_data->message_from_tcp = response_data;
+            write_log(_DEBUG, "Updating shared data.");
+            memcpy(shared_data->message_from_tcp, response_data, MESSAGE_SIZE_BITS);
+
             ResetEvent(shared_data->data_ready_event);
             if (!ReleaseMutex(shared_data->mutex)) {
                 write_log(_ERROR, "Failed to release mutex.");
@@ -130,6 +146,7 @@ DWORD WINAPI tcp_client_thread(LPVOID thread_config) {
     // Cleanup
 cleanup:
     // Close the client socket if it's valid
+    write_log(_INFO, "Starting cleanup process.");
     if (clientSocket != INVALID_SOCKET) {
         cleanup_client(clientSocket);
     }
@@ -138,6 +155,6 @@ cleanup:
     if (config) {
         free(config);
     }
-
+    write_log(_INFO, "TCP client thread terminated.");
     return ret;  // Return the final result code
 }

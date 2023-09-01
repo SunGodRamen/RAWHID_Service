@@ -8,11 +8,19 @@
 #include <windows.h>
 #include <stdbool.h>
 
-#define LOG_LEVEL _ERROR
+#define LOG_LEVEL _DEBUG
 
 int create_threads(HANDLE* rawhid_thread, HANDLE* client_thread, hid_usage_info* device_info, tcp_socket_info* server_info, shared_thread_data* shared_data);
 
 int main() {
+    // Logging application start
+    write_log(_INFO, "Application started");
+
+    // Initialization code
+    init_logger(LOG_FILE);
+    set_log_level(LOG_LEVEL);
+    write_log(_INFO, "Logger initialized");
+
     hid_usage_info device_info = {
         .vendor_id = VENDOR_ID,
         .product_id = PRODUCT_ID,
@@ -25,21 +33,21 @@ int main() {
         .port = SERVER_PORT
     };
 
-    // Initialize logging
-    init_logger(LOG_FILE);
-    set_log_level(LOG_LEVEL);
-
     // Initialize shared data
     shared_thread_data shared_data;
     if (!initialize_shared_data(&shared_data)) {
+        write_log(_ERROR, "Failed to initialize shared data");
         return 1;
     }
+    write_log(_INFO, "Shared data initialized");
 
     // Create threads
     HANDLE rawhid_thread, client_thread;
     if (!create_threads(&rawhid_thread, &client_thread, &device_info, &server_info, &shared_data)) {
+        write_log(_ERROR, "Failed to create threads");
         return 1;
     }
+    write_log(_INFO, "Threads created");
 
     // Wait for threads to complete
     WaitForSingleObject(rawhid_thread, INFINITE);
@@ -48,9 +56,11 @@ int main() {
     // Cleanup
     CloseHandle(shared_data.mutex);
     CloseHandle(shared_data.data_ready_event);
+    write_log(_INFO, "Cleanup completed");
 
     // Close logger
     close_logger();
+    write_log(_INFO, "Application exiting successfully");  // Note: This won't be written to the file as the logger is closed, but it's useful for debugging
 
     return 0;
 }
