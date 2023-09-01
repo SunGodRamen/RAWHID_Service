@@ -9,7 +9,6 @@
 #include <synchapi.h>
 #include <time.h>
 #include "logger.h"
-#include "interthread_comm.h"
 
 // Structure to hold information required for HID device usage.
 typedef struct {
@@ -22,6 +21,6 @@ typedef struct {
 // Function prototypes
 hid_device* get_handle(struct hid_usage_info* device_info);
 void open_usage_path(struct hid_usage_info* device_info, hid_device** handle);
-int write_to_handle(hid_device* handle, unsigned char* message, size_t size);
+int write_to_handle(hid_device** handle, unsigned char* message, size_t size);
 
 #endif // _RAWHID_H_

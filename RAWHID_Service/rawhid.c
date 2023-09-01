@@ -1,9 +1,5 @@
 #include "rawhid.h"
 
-#ifndef MESSAGE_SIZE_BITS
-#define MESSAGE_SIZE_BITS 64
-#endif
-
 /**
  * Opens a HID device based on vendor and product IDs.
  *
@@ -12,15 +8,19 @@
  */
 hid_device* get_handle(hid_usage_info* usage_info) {
     if (!usage_info) {
-        write_log("Usage info is NULL");
+        write_log(_ERROR, "Usage info is NULL");
         return NULL;
     }
 
     hid_device* handle = hid_open(usage_info->vendor_id, usage_info->product_id, NULL);
     if (!handle) {
-        write_log("Failed to get handle");
+        write_log_format(_ERROR, "Failed to get handle for Vendor ID: 0x%x, Product ID: 0x%x",
+            usage_info->vendor_id, usage_info->product_id);
+        return NULL;
     }
 
+    write_log_format(_INFO, "Successfully got handle for Vendor ID: 0x%x, Product ID: 0x%x",
+        usage_info->vendor_id, usage_info->product_id);
     return handle;
 }
 
@@ -32,18 +32,19 @@ hid_device* get_handle(hid_usage_info* usage_info) {
  */
 void open_usage_path(hid_usage_info* usage_info, hid_device** handle) {
     if (!handle || !usage_info) {
-        write_log("Invalid arguments");
+        write_log(_ERROR, "Invalid arguments");
         return;
     }
 
     if (*handle == NULL) {
-        write_log("No handle to open");
+        write_log(_ERROR, "No handle to open");
         return;
     }
 
-    struct hid_device_info* enum_device_info = hid_enumerate(&usage_info->vendor_id, &usage_info->product_id);
+    struct hid_device_info* enum_device_info = hid_enumerate(usage_info->vendor_id, usage_info->product_id);
     if (!enum_device_info) {
-        write_log("Failed to enumerate devices");
+        write_log_format(_ERROR, "Failed to enumerate devices for Vendor ID: 0x%x, Product ID: 0x%x",
+            usage_info->vendor_id, usage_info->product_id);
         return;
     }
 
@@ -53,8 +54,13 @@ void open_usage_path(hid_usage_info* usage_info, hid_device** handle) {
 
             *handle = hid_open_path(enum_device_info->path);
             if (*handle) {
-                write_log("Successfully opened device");
+                write_log_format(_INFO, "Successfully opened device with Usage Page: 0x%x, Usage: 0x%x",
+                    usage_info->usage_page, usage_info->usage);
                 break;
+            }
+            else {
+                write_log_format(_ERROR, "Failed to open device with Usage Page: 0x%x, Usage: 0x%x",
+                    usage_info->usage_page, usage_info->usage);
             }
         }
     }
@@ -70,15 +76,15 @@ void open_usage_path(hid_usage_info* usage_info, hid_device** handle) {
  * @param size The size of the message in bytes.
  * @return The number of bytes written, or -1 if an error occurs.
  */
-int write_to_handle(hid_device* handle, unsigned char* message, size_t size) {
-    if (!handle || !message) {
-        write_log("Invalid arguments");
+int write_to_handle(hid_device** handle, unsigned char* message, size_t size) {
+    if (*handle == NULL || !message) {
+        write_log(_ERROR, "Invalid arguments");
         return -1;
     }
-
-    int result = hid_write(handle, message, size);
+    write_log(_DEBUG, "writing to handle", message);
+    int result = hid_write(*handle, message, size);
     if (result < 0) {
-        write_log("Failed to write to handle");
+        write_log(_ERROR, "Failed to write to handle");
     }
 
     return result;

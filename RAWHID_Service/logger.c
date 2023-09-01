@@ -13,12 +13,24 @@
 static FILE* logFile = NULL;
 static HANDLE logMutex = NULL;
 
+// Internal variable for log level
+static LogLevel currentLogLevel = _DEBUG;
+
 /**
  * Internal utility function to write to the log file.
  *
  * @param message The message string to be logged.
  */
-static void write_to_log_file(const char* message);
+static void write_to_log_file(LogLevel level, const char* message);
+
+/**
+ * Set the logging level.
+ *
+ * @param level The logging level.
+ */
+void set_log_level(LogLevel level) {
+    currentLogLevel = level;
+}
 
 /**
  * Initialize the logger.
@@ -41,63 +53,68 @@ void init_logger(char* filePath) {
 }
 
 /**
- * Writes a simple log message.
+ * Writes a simple log message with a specific logging level.
  *
+ * @param level The logging level.
  * @param message The message string to be logged.
  */
-void write_log(const char* message) {
-    write_to_log_file(message);
+void write_log(LogLevel level, const char* message) {
+    write_to_log_file(level, message);
 }
 
 /**
- * Writes a formatted log message.
+ * Writes a formatted log message with a specific logging level.
  *
+ * @param level The logging level.
  * @param format A format string for the log message.
  * @param ... Variable arguments for the format string.
  */
-void write_log_format(const char* format, ...) {
+void write_log_format(LogLevel level, const char* format, ...) {
     char buffer[BUFFER_SIZE];
     va_list args;
     va_start(args, format);
     vsnprintf(buffer, sizeof(buffer), format, args);
     va_end(args);
 
-    write_to_log_file(buffer);
+    write_to_log_file(level, buffer);
 }
 
 /**
  * Logs an unsigned 64-bit integer in decimal format.
  *
+ * @param level The logging level.
  * @param message A message string to prefix the log.
  * @param value The 64-bit unsigned integer to log.
  */
-void write_log_uint64_dec(const char* message, uint64_t value) {
+void write_log_uint64_dec(LogLevel level, const char* message, uint64_t value) {
     char buffer[BUFFER_SIZE];
     snprintf(buffer, sizeof(buffer), "%s: %llu", message, value);
 
-    write_to_log_file(buffer);
+    write_to_log_file(level, buffer);
 }
 
 /**
  * Logs an unsigned 64-bit integer in hexadecimal format.
  *
+ * @param level The logging level.
  * @param message A message string to prefix the log.
  * @param value The 64-bit unsigned integer to log.
  */
-void write_log_uint64_hex(const char* message, uint64_t value) {
+void write_log_uint64_hex(LogLevel level, const char* message, uint64_t value) {
     char buffer[BUFFER_SIZE];
     snprintf(buffer, sizeof(buffer), "%s: 0x%llx", message, value);
 
-    write_to_log_file(buffer);
+    write_to_log_file(level, buffer);
 }
 
 /**
  * Logs an unsigned 64-bit integer in binary format.
  *
+ * @param level The logging level.
  * @param message A message string to prefix the log.
  * @param value The 64-bit unsigned integer to log.
  */
-void write_log_uint64_bin(const char* message, uint64_t value) {
+void write_log_uint64_bin(LogLevel level, const char* message, uint64_t value) {
     char buffer[BUFFER_SIZE];
     char binaryStr[65];
 
@@ -108,18 +125,44 @@ void write_log_uint64_bin(const char* message, uint64_t value) {
 
     snprintf(buffer, sizeof(buffer), "%s: %s", message, binaryStr);
 
-    write_to_log_file(buffer);
+    write_to_log_file(level, buffer);
 }
 
 /**
  * Internal utility function to write to log file.
  *
+ * @param level The logging level.
+ * @param level The logging level.
  * @param message The message string to be logged.
  */
-static void write_to_log_file(const char* message) {
+static void write_to_log_file(LogLevel level, const char* message) {
+    const char* levelStr = "";
+    switch (level) {
+    case _DEBUG:
+        levelStr = "[DEBUG]";
+        break;
+    case _INFO:
+        levelStr = "[INFO]";
+        break;
+    case _WARN:
+        levelStr = "[WARN]";
+        break;
+    case _ERROR:
+        levelStr = "[ERROR]";
+        break;
+    }
+
+    // Print to console
+    printf("%s %s\n", levelStr, message);
+
+    if (level >= currentLogLevel) {
+        return;
+    }
+
     WaitForSingleObject(logMutex, INFINITE);
 
-    if (fprintf(logFile, "%s\n", message) < 0) {
+    // Write to the log file
+    if (fprintf(logFile, "%s %s\n", levelStr, message) < 0) {
         fprintf(stderr, "Error: Unable to write to log file.\n");
     }
 

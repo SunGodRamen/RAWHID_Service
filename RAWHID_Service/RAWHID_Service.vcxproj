@@ -139,7 +139,8 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClCompile Include="interthread_comm.h" />
+    <ClCompile Include="shared_thread_data.c" />
+    <ClCompile Include="shared_thread_data.h" />
     <ClCompile Include="logger.c" />
     <ClCompile Include="main.c" />
     <ClCompile Include="message_protocol.c" />
@@ -151,7 +152,6 @@
   <ItemGroup>
     <ClInclude Include="config.h" />
     <ClInclude Include="logger.h" />
-    <ClInclude Include="main.h" />
     <ClInclude Include="message_protocol.h" />
     <ClInclude Include="rawhid.h" />
     <ClInclude Include="rawhid_thread.h" />

@@ -1,9 +1,5 @@
 #include "tcp_client.h"
 
-#ifndef MESSAGE_SIZE_BITS
-#define MESSAGE_SIZE_BYTES 8 // 64 bits
-#endif
-
 /**
  * Reads a 64-bit (8 bytes) message from the server.
  *
@@ -13,7 +9,7 @@
  */
 int read_message_from_server(SOCKET serverSocket, char* buffer) {
     if (!buffer) {
-        write_log("Buffer is NULL");
+        write_log(_ERROR, "Buffer is NULL");
         return -1;
     }
 
@@ -24,12 +20,12 @@ int read_message_from_server(SOCKET serverSocket, char* buffer) {
         bytesRead = recv(serverSocket, buffer + totalBytesRead, MESSAGE_SIZE_BYTES - totalBytesRead, 0);
 
         if (bytesRead == SOCKET_ERROR && WSAGetLastError() != 10053) {
-            write_log_format("TCP: Error occurred while reading from socket. Error Code: %d", WSAGetLastError());
+            write_log_format(_ERROR, "TCP: Error occurred while reading from socket. Error Code: %d", WSAGetLastError());
             return -1;
         }
 
         if (bytesRead == 0) {
-            write_log("TCP: Server disconnected before sending full message.");
+            write_log(_ERROR, "TCP: Server disconnected before sending full message.");
             return totalBytesRead;
         }
 
@@ -48,41 +44,42 @@ int read_message_from_server(SOCKET serverSocket, char* buffer) {
 SOCKET init_client(tcp_socket_info* server_info) {
     WSADATA wsaData;
 
-    // Initialize WinSock
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0) {
-        write_log_format("TCP: Failed to initialize WinSock. Error Code: %d", WSAGetLastError());
-        exit(1);
+        write_log_format(_ERROR, "TCP: Failed to initialize WinSock. Error Code: %d", WSAGetLastError());
+        return INVALID_SOCKET;
     }
 
-    // Validate server information
     if (!server_info) {
-        write_log("Server information is NULL");
+        write_log(_ERROR, "Server information is NULL");
         WSACleanup();
-        exit(1);
+        return INVALID_SOCKET;
     }
 
     SOCKET clientSocket = socket(AF_INET, SOCK_STREAM, 0);
     if (clientSocket == INVALID_SOCKET) {
-        write_log_format("TCP: Failed to create socket. Error Code: %d", WSAGetLastError());
+        write_log_format(_ERROR, "TCP: Failed to create socket. Error Code: %d; Server IP: %s, Port: %d",
+            WSAGetLastError(), server_info->ip, server_info->port);
         WSACleanup();
-        exit(1);
+        return INVALID_SOCKET;
     }
 
     struct sockaddr_in serverAddr;
     serverAddr.sin_family = AF_INET;
 
     if (inet_pton(AF_INET, server_info->ip, &(serverAddr.sin_addr)) <= 0) {
-        write_log_format("TCP: Invalid IP address or error in inet_pton. Error Code: %d", WSAGetLastError());
+        write_log_format(_ERROR, "TCP: Invalid IP address or error in inet_pton. Error Code: %d; Server IP: %s, Port: %d",
+            WSAGetLastError(), server_info->ip, server_info->port);
         cleanup_client(clientSocket);
-        exit(1);
+        return INVALID_SOCKET;
     }
 
     serverAddr.sin_port = htons(server_info->port);
 
     if (connect(clientSocket, (struct sockaddr*)&serverAddr, sizeof(serverAddr)) == SOCKET_ERROR) {
-        write_log_format("TCP: Connect failed. Error Code: %d", WSAGetLastError());
+        write_log_format(_ERROR, "TCP: Connect failed. Error Code: %d; Server IP: %s, Port: %d",
+            WSAGetLastError(), server_info->ip, server_info->port);
         cleanup_client(clientSocket);
-        exit(1);
+        return INVALID_SOCKET;
     }
 
     return clientSocket;
@@ -95,15 +92,20 @@ SOCKET init_client(tcp_socket_info* server_info) {
  * @param data Pointer to the data to be sent.
  * @param dataLength The length of the data in bytes.
  */
-void send_to_server(SOCKET serverSocket, const char* data, int dataLength) {
+int send_to_server(SOCKET serverSocket, const char* data, int dataLength) {
     if (!data || dataLength <= 0) {
-        write_log("Invalid data to send");
-        return;
+        write_log(_ERROR, "Invalid data to send");
+        return -1; // Fixed a typo, added a semicolon
     }
 
     if (send(serverSocket, data, dataLength, 0) == SOCKET_ERROR) {
-        write_log_format("Failed to send data. Error Code: %d", WSAGetLastError());
+        write_log_format(_ERROR, "Failed to send data. Error Code: %d", WSAGetLastError());
+        return -1;
     }
+
+    write_log_format(_DEBUG, "Sending to tcp server: %s", data);
+
+    return 0;
 }
 
 /**

@@ -1,66 +1,88 @@
 #include "rawhid_thread.h"
 
-#ifndef MESSAGE_SIZE_BITS
-#define MESSAGE_SIZE_BITS 64
-#endif
+// Function prototype for sending a ping message
+void send_ping(hid_device* handle);
 
-DWORD WINAPI rawhid_device_thread(LPVOID device_info) {
+/**
+ * The thread function that handles communication with the HID device.
+ *
+ * @param thread_config Pointer to a hid_thread_config struct containing
+ *                      the device information and shared data.
+ * @return 0 on successful execution, -1 on failure.
+ */
+DWORD WINAPI rawhid_device_thread(LPVOID thread_config) {
+    int ret = 0; // Use to collect the return status
+    hid_device* handle = NULL;
+    unsigned char message[MESSAGE_SIZE_BITS] = { 0 };
 
-    // Initialize HID API
+    hid_thread_config* config = (hid_thread_config*)thread_config;
+    if (!config || !config->device_info || !config->shared_data) {
+        write_log(_ERROR, "Configuration or Device information is NULL.\n");
+        ret = -1;
+        goto cleanup;
+    }
+
+    write_log_format(_INFO, "Vendor ID: 0x%x, Product ID: 0x%x", config->device_info->vendor_id, config->device_info->product_id);
+
     if (hid_init()) {
-        fprintf(stderr, "Unable to initialize HIDAPI.\n");
-        return -1;
+        write_log(_ERROR, "Unable to initialize HIDAPI.\n");
+        ret = -1;
+        goto cleanup;
     }
 
-    // Validate and get a device handle
-    if (!device_info) {
-        fprintf(stderr, "Device information is NULL.\n");
-        hid_exit();
-        return -1;
-    }
-
-    hid_device* handle = get_handle(device_info);
-    open_usage_path(device_info, &handle);
-
-    // Check if handle is valid
+    handle = get_handle(config->device_info);
+    open_usage_path(config->device_info, &handle);
     if (!handle) {
-        fprintf(stderr, "Failed to open the device.\n");
-        hid_exit();
-        return -1;
+        write_log(_ERROR, "Failed to open the device.\n");
+        ret = -1;
+        goto cleanup;
     }
 
-    // Core logic
-    unsigned char message[MESSAGE_SIZE_BITS];
     hid_set_nonblocking(handle, true);
+    shared_thread_data* shared_data = config->shared_data;
 
     while (true) {
         int read_status = hid_read(handle, message, sizeof(message));
-        if (read_status > 0) {
-            // Acquire the mutex and update the shared data
-            WaitForSingleObject(sharedData.mutex, INFINITE);
-            memcpy(sharedData.message_to_tcp, message, MESSAGE_SIZE_BITS);
-            SetEvent(sharedData.data_ready_event);
-            ReleaseMutex(sharedData.mutex);
+        if (read_status < 0) {
+            write_log_format(_ERROR, "Failed to read from device: %s", hid_error(handle));
+            ret = -1;
+            goto cleanup;
         }
-        // Send a ping
-        send_ping(handle);
+
+        if (read_status > 0) {
+            write_log(_DEBUG, "hid read", message);
+            set_message_to_tcp(shared_data, message, sizeof(message));
+            send_ping(handle);
+        }
     }
 
-    // Close and exit
-    hid_close(handle);
+cleanup:
+    if (handle) {
+        hid_close(handle);
+    }
     hid_exit();
-    return 0;
+    if (config) {
+        free(config);
+    }
+    return ret;
 }
 
-// Function to send a ping message
+/**
+ * Sends a ping message to a HID device.
+ *
+ * @param handle The handle to the HID device.
+ */
 void send_ping(hid_device* handle) {
+    // Validate the device handle
     if (!handle) {
-        write_log("Handle is NULL, cannot send ping");
+        write_log(_ERROR, "Handle is NULL, cannot send ping");
         return;
     }
 
+    // Prepare the ping message
     unsigned char ping[] = { 0x00, 0x01 };
+    // Attempt to send the ping message
     if (write_to_handle(handle, ping, sizeof(ping)) < 0) {
-        write_log_format("Failed to send ping: %s", hid_error(handle));
+        write_log_format(_ERROR, "Failed to send ping: %s", hid_error(handle));
     }
 }

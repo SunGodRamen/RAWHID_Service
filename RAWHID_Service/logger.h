@@ -9,12 +9,20 @@
 extern FILE* logFile;
 extern HANDLE logMutex;
 
+typedef enum {
+    _DEBUG = 1,
+    _INFO,
+    _WARN,
+    _ERROR
+} LogLevel;
+
 void init_logger(char* filePath);
-void write_log_format(const char* format, ...);
-void write_log_uint64_dec(const char* message, uint64_t value);
-void write_log_uint64_bin(const char* message, uint64_t value);
-void write_log_uint64_hex(const char* message, uint64_t value);
-void write_log(const char* message);
+void set_log_level(LogLevel level);
+void write_log_format(LogLevel level, const char* format, ...);
+void write_log_uint64_dec(LogLevel level, const char* message, uint64_t value);
+void write_log_uint64_bin(LogLevel level, const char* message, uint64_t value);
+void write_log_uint64_hex(LogLevel level, const char* message, uint64_t value);
+void write_log(LogLevel level, const char* message);
 void close_logger();
 
 #endif // LOGGER_H

@@ -4,7 +4,7 @@
 #include "logger.h"
 #include <stdint.h>
 
-#ifndef MESSAGE_SIZE_BITS
+#ifndef MESSAGE_SIZE_BYTES
 #define MESSAGE_SIZE_BYTES 8 // 64 bits
 #endif
 

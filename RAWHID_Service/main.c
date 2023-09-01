@@ -3,15 +3,14 @@
 #include "tcp_client_thread.h"
 #include "rawhid.h"
 #include "rawhid_thread.h"
-#include "interthread_comm.h"
+#include "shared_thread_data.h"
 #include "logger.h"
 #include <windows.h>
 #include <stdbool.h>
 
-SharedData sharedData;
+#define LOG_LEVEL _ERROR
 
-int initialize_shared_data();
-int create_threads(HANDLE* rawhid_thread, HANDLE* client_thread, hid_usage_info* device_info, tcp_socket_info* server_info);
+int create_threads(HANDLE* rawhid_thread, HANDLE* client_thread, hid_usage_info* device_info, tcp_socket_info* server_info, shared_thread_data* shared_data);
 
 int main() {
     hid_usage_info device_info = {
@@ -28,15 +27,17 @@ int main() {
 
     // Initialize logging
     init_logger(LOG_FILE);
+    set_log_level(LOG_LEVEL);
 
     // Initialize shared data
-    if (!initialize_shared_data()) {
+    shared_thread_data shared_data;
+    if (!initialize_shared_data(&shared_data)) {
         return 1;
     }
 
     // Create threads
     HANDLE rawhid_thread, client_thread;
-    if (!create_threads(&rawhid_thread, &client_thread, &device_info, &server_info)) {
+    if (!create_threads(&rawhid_thread, &client_thread, &device_info, &server_info, &shared_data)) {
         return 1;
     }
 
@@ -45,37 +46,14 @@ int main() {
     WaitForSingleObject(client_thread, INFINITE);
 
     // Cleanup
-    CloseHandle(sharedData.mutex);
-    CloseHandle(sharedData.data_ready_event);
+    CloseHandle(shared_data.mutex);
+    CloseHandle(shared_data.data_ready_event);
 
     // Close logger
     close_logger();
 
     return 0;
 }
-
-/**
- * Initialize the mutex and event for shared data
- *
- * @return 1 if successful, 0 otherwise
- */
-int initialize_shared_data() {
-    sharedData.mutex = CreateMutex(NULL, FALSE, NULL);
-    if (sharedData.mutex == NULL) {
-        fprintf(stderr, "Failed to create mutex.\n");
-        return 0;
-    }
-
-    sharedData.data_ready_event = CreateEvent(NULL, TRUE, FALSE, NULL);
-    if (sharedData.data_ready_event == NULL) {
-        fprintf(stderr, "Failed to create event.\n");
-        CloseHandle(sharedData.mutex);  // Cleanup before exiting
-        return 0;
-    }
-
-    return 1;
-}
-
 /**
  * Create rawhid and client threads
  *
@@ -85,19 +63,41 @@ int initialize_shared_data() {
  * @param server_info Pointer to tcp_socket_info for client thread
  * @return 1 if successful, 0 otherwise
  */
-int create_threads(HANDLE* rawhid_thread, HANDLE* client_thread, hid_usage_info* device_info, tcp_socket_info* server_info) {
+int create_threads(HANDLE* rawhid_thread, HANDLE* client_thread, hid_usage_info* device_info, tcp_socket_info* server_info, shared_thread_data* shared_data) {
+    
+    hid_thread_config* hid_thread_config_ptr = (hid_thread_config*)malloc(sizeof(hid_thread_config));
+    if (hid_thread_config_ptr == NULL) {
+        write_log(_ERROR, "Error allocating memory for hid_thread_config\n");
+        return 0;
+    }
+    hid_thread_config_ptr->device_info = device_info;
+    hid_thread_config_ptr->shared_data = shared_data;
+
+    client_thread_config* client_thread_config_ptr = (client_thread_config*)malloc(sizeof(client_thread_config));
+    if (client_thread_config_ptr == NULL) {
+        write_log(_ERROR, "Error allocating memory for client_thread_config\n");
+        free(hid_thread_config_ptr);
+        return 0;
+    }
+    client_thread_config_ptr->server_config = server_info;
+    client_thread_config_ptr->shared_data = shared_data;
+    
     DWORD rawhid_thread_id, client_thread_id;
 
-    *rawhid_thread = CreateThread(NULL, 0, rawhid_device_thread, device_info, 0, &rawhid_thread_id);
+    *rawhid_thread = CreateThread(NULL, 0, rawhid_device_thread, hid_thread_config_ptr, 0, &rawhid_thread_id);
     if (*rawhid_thread == NULL) {
-        fprintf(stderr, "Error creating hid thread\n");
+        write_log(_ERROR, "Error creating hid thread\n");
+        free(hid_thread_config_ptr);
+        free(client_thread_config_ptr);
         return 0;
     }
 
-    *client_thread = CreateThread(NULL, 0, tcp_client_thread, server_info, 0, &client_thread_id);
+    *client_thread = CreateThread(NULL, 0, tcp_client_thread, client_thread_config_ptr, 0, &client_thread_id);
     if (*client_thread == NULL) {
-        fprintf(stderr, "Error creating tcp thread\n");
+        write_log(_ERROR, "Error creating tcp thread\n");
         CloseHandle(*rawhid_thread);  // Cleanup before exiting
+        free(hid_thread_config_ptr);
+        free(client_thread_config_ptr);
         return 0;
     }
 
