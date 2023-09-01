@@ -96,10 +96,12 @@ int write_to_handle(hid_device** handle, unsigned char* message, size_t size) {
     write_log(_DEBUG, "writing to handle", message);
 
     // Write the message to the HID device
-    int result = hid_write(*handle, message, size);
+    int result = hid_write(handle, message, size);
     if (result < 0) {
         write_log(_ERROR, "Failed to write to handle");
+        return result;
     }
 
+    write_log(_DEBUG, "wrote to handle", message);
     return result; // Return the number of bytes written or -1 if an error occurs
 }
