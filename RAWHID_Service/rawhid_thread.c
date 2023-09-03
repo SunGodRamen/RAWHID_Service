@@ -1,5 +1,7 @@
 #include "rawhid_thread.h"
 
+#define BUFFER_SIZE MESSAGE_SIZE_BITS
+
 // Function prototype for sending a ping message
 void send_ping(hid_device* handle);
 
@@ -11,27 +13,27 @@ void send_ping(hid_device* handle);
  * @return 0 on successful execution, -1 on failure.
  */
 DWORD WINAPI rawhid_device_thread(LPVOID thread_config) {
-    write_log(_INFO, "Entered rawhid_device_thread.");
+    write_log(_INFO, "RAWHID Thread - Entered rawhid_device_thread.");
     int ret = 0; // Variable to store the return status
     hid_device* handle = NULL; // Handle for the HID device
-    unsigned char message[MESSAGE_SIZE_BITS]; // Message buffer
+    unsigned char message[BUFFER_SIZE]; // Message buffer
 
     // Cast thread_config to its proper type
     hid_thread_config* config = (hid_thread_config*)thread_config;
 
     // Validate that configuration and device information isn't NULL
     if (!config || !config->device_info || !config->shared_data) {
-        write_log(_ERROR, "Configuration or Device information is NULL.\n");
+        write_log(_ERROR, "RAWHID Thread - Configuration or Device information is NULL.\n");
         ret = -1;
         goto cleanup;
     }
 
     // Log Vendor ID and Product ID
-    write_log_format(_INFO, "Initializing HIDAPI for Vendor ID: 0x%x, Product ID: 0x%x", config->device_info->vendor_id, config->device_info->product_id);
+    write_log_format(_INFO, "RAWHID Thread - Initializing HIDAPI for Vendor ID: 0x%x, Product ID: 0x%x", config->device_info->vendor_id, config->device_info->product_id);
 
     // Initialize the HID API
     if (hid_init()) {
-        write_log(_ERROR, "Unable to initialize HIDAPI.\n");
+        write_log(_ERROR, "RAWHID Thread - Unable to initialize HIDAPI.\n");
         ret = -1;
         goto cleanup;
     }
@@ -40,12 +42,12 @@ DWORD WINAPI rawhid_device_thread(LPVOID thread_config) {
     handle = get_handle(config->device_info);
     open_usage_path(config->device_info, &handle);
     if (!handle) {
-        write_log(_ERROR, "Failed to open the device.\n");
+        write_log(_ERROR, "RAWHID Thread - Failed to open the device.\n");
         ret = -1;
         goto cleanup;
     }
 
-    write_log(_INFO, "Device opened successfully.");
+    write_log(_INFO, "RAWHID Thread - Device opened successfully.");
     
     // Set the device to non-blocking mode
     hid_set_nonblocking(handle, true);
@@ -57,7 +59,7 @@ DWORD WINAPI rawhid_device_thread(LPVOID thread_config) {
     while (true) {
         int read_status = hid_read(handle, message, sizeof(message));
         if (read_status < 0) {
-            write_log_format(_ERROR, "Failed to read from device: %s", hid_error(handle));
+            write_log_format(_ERROR, "RAWHID Thread - Failed to read from device: %s", hid_error(handle));
             ret = -1;
             goto cleanup;
         }
@@ -84,7 +86,7 @@ cleanup: // Cleanup label for resource freeing and exit
         free(config);
     }
 
-    write_log(_INFO, "Exiting rawhid_device_thread.");
+    write_log(_INFO, "RAWHID Thread - Exiting rawhid_device_thread.");
     return ret;
 }
 

@@ -10,6 +10,7 @@
 static void encode_common_fields(uint64_t request_id, uint64_t flags, uint64_t* encoded) {
     *encoded = flags;
     *encoded |= (request_id << 55) & REQUEST_ID_MASK;
+    write_log_uint64_bin(_DEBUG, "Message Protocol - Encoded", encoded);
 }
 
 /**
@@ -19,11 +20,21 @@ static void encode_common_fields(uint64_t request_id, uint64_t flags, uint64_t* 
  * @param result Pointer to MessageType enum where the interpreted type will be stored.
  */
 void interpret_message(uint64_t message, MessageType* result) {
+    write_log_uint64_hex(_DEBUG, "Message Protocol - message to interpret", message);
     if ((message & MESSAGE_TYPE_MASK) == 0) {
+        write_log(_INFO, "Message Protocol - Interpreted request.");
         *result = REQUEST_MESSAGE;
         return;
     }
-    *result = (message & RESPONSE_TYPE_MASK) ? RESPONSE_MESSAGE : CONFIRM_MESSAGE;
+    if (message & RESPONSE_TYPE_MASK) {
+        write_log(_INFO, "Message Protocol - Interpreted response.");
+        *result = RESPONSE_MESSAGE;
+    }
+    else {
+        write_log(_INFO, "Message Protocol - Interpreted confirm.");
+        *result = CONFIRM_MESSAGE;
+    }
+    //*result = (message & RESPONSE_TYPE_MASK) ? RESPONSE_MESSAGE : CONFIRM_MESSAGE;
 }
 
 /**
@@ -36,6 +47,8 @@ void interpret_message(uint64_t message, MessageType* result) {
 void extract_request_id_and_data(uint64_t message, uint64_t* request_id, uint64_t* data) {
     *request_id = (message & REQUEST_ID_MASK) >> 55;
     *data = message & RESPONSE_DATA_MASK;
+    write_log_uint64_bin(_DEBUG, "Message Protocol - Extracted Request id", request_id);
+    write_log_uint64_bin(_DEBUG, "Message Protocol - Extracted Data", data);
 }
 
 /**
@@ -46,6 +59,7 @@ void extract_request_id_and_data(uint64_t message, uint64_t* request_id, uint64_
  */
 void extract_request_uri(uint64_t message, uint64_t* uri) {
     *uri = message & URI_MASK;
+    write_log_uint64_bin(_DEBUG, "Message Protocol - Extracted URI", uri);
 }
 
 /**
@@ -56,6 +70,7 @@ void extract_request_uri(uint64_t message, uint64_t* uri) {
  */
 void encode_confirmation(uint64_t request_id, uint64_t* encoded) {
     encode_common_fields(request_id, MESSAGE_TYPE_MASK, encoded);
+    write_log_uint64_bin(_DEBUG, "Message Protocol - Encoded Confirmation", encoded);
 }
 
 /**
@@ -68,6 +83,7 @@ void encode_request(uint64_t uri, uint64_t* encoded) {
     // Request messages have the message type bit set to 0
     *encoded = 0;
     *encoded |= uri & URI_MASK;
+    write_log_uint64_bin(_DEBUG, "Message Protocol - Encoded Request", encoded);
 }
 
 /**
@@ -80,4 +96,5 @@ void encode_request(uint64_t uri, uint64_t* encoded) {
 void encode_response(uint64_t request_id, uint64_t data, uint64_t* encoded) {
     encode_common_fields(request_id, MESSAGE_TYPE_MASK | RESPONSE_TYPE_MASK, encoded);
     *encoded |= data & RESPONSE_DATA_MASK;
+    write_log_uint64_bin(_DEBUG, "Message Protocol - Encoded Response", encoded);
 }

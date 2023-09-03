@@ -1,25 +1,22 @@
 #include "config.h"
-#include "tcp_client.h"
 #include "tcp_client_thread.h"
-#include "rawhid.h"
 #include "rawhid_thread.h"
 #include "shared_thread_data.h"
 #include "logger.h"
 #include <windows.h>
-#include <stdbool.h>
 
-#define LOG_LEVEL _DEBUG
+#define LOG_LEVEL _INFO
 
 int create_threads(HANDLE* rawhid_thread, HANDLE* client_thread, hid_usage_info* device_info, tcp_socket_info* server_info, shared_thread_data* shared_data);
 
 int main() {
-    // Logging application start
-    write_log(_INFO, "Application started");
 
     // Initialization code
     init_logger(LOG_FILE);
     set_log_level(LOG_LEVEL);
-    write_log(_INFO, "Logger initialized");
+
+    // Logging application start
+    write_log(_INFO, "Main - Application started");
 
     hid_usage_info device_info = {
         .vendor_id = VENDOR_ID,
@@ -36,18 +33,18 @@ int main() {
     // Initialize shared data
     shared_thread_data shared_data;
     if (!initialize_shared_data(&shared_data)) {
-        write_log(_ERROR, "Failed to initialize shared data");
+        write_log(_ERROR, "Main - Failed to initialize shared data");
         return 1;
     }
-    write_log(_INFO, "Shared data initialized");
+    write_log(_INFO, "Main - Shared data initialized");
 
     // Create threads
     HANDLE rawhid_thread, client_thread;
     if (!create_threads(&rawhid_thread, &client_thread, &device_info, &server_info, &shared_data)) {
-        write_log(_ERROR, "Failed to create threads");
+        write_log(_ERROR, "Main - Failed to create threads");
         return 1;
     }
-    write_log(_INFO, "Threads created");
+    write_log(_INFO, "Main - Threads created");
 
     // Wait for threads to complete
     WaitForSingleObject(rawhid_thread, INFINITE);
@@ -56,11 +53,11 @@ int main() {
     // Cleanup
     CloseHandle(shared_data.mutex);
     CloseHandle(shared_data.data_ready_event);
-    write_log(_INFO, "Cleanup completed");
+    write_log(_INFO, "Main - Cleanup completed");
 
     // Close logger
     close_logger();
-    write_log(_INFO, "Application exiting successfully");  // Note: This won't be written to the file as the logger is closed, but it's useful for debugging
+    write_log(_INFO, "Main - Application exiting successfully");  // Note: This won't be written to the file as the logger is closed, but it's useful for debugging
 
     return 0;
 }
@@ -77,7 +74,7 @@ int create_threads(HANDLE* rawhid_thread, HANDLE* client_thread, hid_usage_info*
     
     hid_thread_config* hid_thread_config_ptr = (hid_thread_config*)malloc(sizeof(hid_thread_config));
     if (hid_thread_config_ptr == NULL) {
-        write_log(_ERROR, "Error allocating memory for hid_thread_config\n");
+        write_log(_ERROR, "Main - Error allocating memory for hid_thread_config\n");
         return 0;
     }
     hid_thread_config_ptr->device_info = device_info;
@@ -85,7 +82,7 @@ int create_threads(HANDLE* rawhid_thread, HANDLE* client_thread, hid_usage_info*
 
     client_thread_config* client_thread_config_ptr = (client_thread_config*)malloc(sizeof(client_thread_config));
     if (client_thread_config_ptr == NULL) {
-        write_log(_ERROR, "Error allocating memory for client_thread_config\n");
+        write_log(_ERROR, "Main - Error allocating memory for client_thread_config\n");
         free(hid_thread_config_ptr);
         return 0;
     }
@@ -96,7 +93,7 @@ int create_threads(HANDLE* rawhid_thread, HANDLE* client_thread, hid_usage_info*
 
     *rawhid_thread = CreateThread(NULL, 0, rawhid_device_thread, hid_thread_config_ptr, 0, &rawhid_thread_id);
     if (*rawhid_thread == NULL) {
-        write_log(_ERROR, "Error creating hid thread\n");
+        write_log(_ERROR, "Main - Error creating hid thread\n");
         free(hid_thread_config_ptr);
         free(client_thread_config_ptr);
         return 0;
@@ -104,7 +101,7 @@ int create_threads(HANDLE* rawhid_thread, HANDLE* client_thread, hid_usage_info*
 
     *client_thread = CreateThread(NULL, 0, tcp_client_thread, client_thread_config_ptr, 0, &client_thread_id);
     if (*client_thread == NULL) {
-        write_log(_ERROR, "Error creating tcp thread\n");
+        write_log(_ERROR, "Main - Error creating tcp thread\n");
         CloseHandle(*rawhid_thread);  // Cleanup before exiting
         free(hid_thread_config_ptr);
         free(client_thread_config_ptr);
