@@ -86,7 +86,7 @@ DWORD WINAPI tcp_client_thread(LPVOID thread_config) {
                 goto cleanup;
             }
 
-            interpret_message(response_data, &response_type);  // Interpret the received message
+            interpret_message(&response_data, &response_type);  // Interpret the received message
 
             // Check if received message is of the confirmation type
             if (bytesRead == BUFFER_SIZE) {
