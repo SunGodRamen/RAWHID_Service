@@ -135,16 +135,28 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);hidapi.lib</AdditionalDependencies>
+      <AdditionalDependencies>$(CoreLibraryDependencies);%(AdditionalDependencies);hidapi.lib;Ws2_32.lib;</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="shared_thread_data.c" />
+    <ClCompile Include="shared_thread_data.h" />
+    <ClCompile Include="logger.c" />
     <ClCompile Include="main.c" />
+    <ClCompile Include="message_protocol.c" />
     <ClCompile Include="rawhid.c" />
+    <ClCompile Include="rawhid_thread.c" />
+    <ClCompile Include="tcp_client.c" />
+    <ClCompile Include="tcp_client_thread.c" />
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="main.h" />
+    <ClInclude Include="config.h" />
+    <ClInclude Include="logger.h" />
+    <ClInclude Include="message_protocol.h" />
     <ClInclude Include="rawhid.h" />
+    <ClInclude Include="rawhid_thread.h" />
+    <ClInclude Include="tcp_client.h" />
+    <ClInclude Include="tcp_client_thread.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
