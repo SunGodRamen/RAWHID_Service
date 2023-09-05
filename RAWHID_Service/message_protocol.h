@@ -4,56 +4,75 @@
 #include "logger.h"
 #include <stdint.h>
 
-#ifndef MESSAGE_SIZE_BYTES
-#define MESSAGE_SIZE_BYTES 8 // 64 bits
-#endif
+#define MESSAGE_SIZE_BYTES 32
 
-#ifndef MESSAGE_SIZE_BITS
-#define MESSAGE_SIZE_BITS MESSAGE_SIZE_BYTES*8
-#else
-#define MESSAGE_SIZE_BITS 64
-#endif
-
-//   TCP Message Protocol_v1  64 bits
-// 
-//    - Request:
-//      - Bit:  1;      Message type        ( 0 : Request)
-//      - Bit:  2-64;   URI
-// 
-//    - Confirmation:
-//      - Bit:  1;      Message type        ( 1 : Response )
-//      - Bit:  2;      Response type       ( 0 : Confirm )
-//      - Bit:  3-9;    Request ID
-// 
-//    - Response:
-//      - Bit:  1;      Message type        ( 1 : Response )
-//      - Bit:  2;      Response type       ( 1 : Response )
-//      - Bit:  3-9;    Request ID
-//      - Bit:  10-64;  Response Data
-
-// Define bit masks
-#define MESSAGE_TYPE_MASK   0x8000000000000000  // Bit 1
-
-// Request:
-#define URI_MASK            0x3FFFFFFFFFFFFFFF  // Bits 2-64
-
-// Response:
-#define RESPONSE_TYPE_MASK  0x4000000000000000  // Bit 2
-#define REQUEST_ID_MASK     0x3F80000000000000  // Bits 3-9
-#define RESPONSE_DATA_MASK  0x007FFFFFFFFFFFFF  // Bits 10-64
+/**
+ * Message Protocol Description
+ *
+ * This protocol is designed to encode and decode messages for a networked application.
+ * Messages can be of the type Request, Confirmation, and Response. The protocol uses
+ * byte arrays for the sake of flexibility, simplicity, and better network interoperability.
+ *
+ * Message Structure (All Sizes in Bytes)
+ * ------------------
+ *  - Byte 0:              Flags (Message Type and Additional Information)
+ *                          - Bit 0: 0 for Request, 1 for Response/Confirmation
+ *                          - Bit 1: 0 for Confirmation, 1 for Response (valid only if Bit 0 is 1)
+ *                          - Bit 2-7: Reserved for future use
+ *
+ *  - Bytes 1-2:           Request ID (16 bits)
+ *  - Bytes 3-4:           Status Code (16 bits)
+ *  - Bytes 5-7:           Reserved (for future use)
+ *
+ *  - Bytes 8-15:          Data Field (64 bits, could be URI or Response Data)
+ *  - Bytes 16-63:         Reserved Payload Space (for future use)
+ *
+ * Specific Structures Based on Message Type
+ * ---------------------------
+ * Request Message Structure
+ * -------------------------
+ *  - Byte 0:              Flags (0x00)
+ *  - Bytes 1-2:           Zero (unused)
+ *  - Bytes 3-4:           Zero (unused)
+ *  - Bytes 5-7:           Zero (unused)
+ *  - Bytes 8-15:          URI (64 bits)
+ *  - Bytes 16-63:         Reserved for future use
+ *
+ * ------------------------------
+ * Confirmation Message Structure
+ * ------------------------------
+ *  - Byte 0:              Flags (0x01 with Bit 1 set to 0)
+ *  - Bytes 1-2:           Request ID (16 bits)
+ *  - Bytes 3-4:           Status Code (16 bits)
+ *  - Bytes 5-63:          Reserved for future use
+ *
+ * -------------------------
+ * Response Message Structure
+ * -------------------------
+ *  - Byte 0:              Flags (0x03, i.e., 0000 0011 in binary, Bit 0 and Bit 1 are set)
+ *  - Bytes 1-2:           Request ID (16 bits)
+ *  - Bytes 3-4:           Zero (unused)
+ *  - Bytes 5-7:           Zero (unused)
+ *  - Bytes 8-15:          Response Data (64 bits)
+ *  - Bytes 16-63:         Reserved for future use
+ *
+ * The protocol provides functions to encode these messages into byte arrays and to decode
+ * byte arrays back into their respective fields. Endianness should be managed at the
+ * application layer if necessary.
+ */
 
 typedef enum {
     REQUEST_MESSAGE,
     CONFIRM_MESSAGE,
     RESPONSE_MESSAGE,
-    UNKNOWN_MESSAGE     // Represents unrecognized sequences
+    UNKNOWN_MESSAGE // Represents unrecognized sequences
 } MessageType;
 
-void interpret_message(uint64_t* message, MessageType* result);
-void extract_request_uri(uint64_t message, uint64_t* uri);
-void extract_request_id_and_data(uint64_t message, uint64_t* request_id, uint64_t* data);
-void encode_confirmation(uint64_t request_id, uint64_t* encoded);
-void encode_response(uint64_t request_id, uint64_t data, uint64_t* encoded);
-void encode_request(uint64_t uri, uint64_t* encoded);
+void interpret_message(const uint8_t* buffer, MessageType* result);
+void encode_confirmation(uint8_t* buffer, uint16_t request_id, uint16_t status_code);
+void encode_request(uint8_t* buffer, uint64_t uri);
+void encode_response(uint8_t* buffer, uint16_t request_id, uint64_t data);
+void extract_request_uri(const uint8_t* buffer, uint64_t* uri);
+void extract_request_id_and_data(const uint8_t* buffer, uint16_t* request_id, uint64_t* data);
 
 #endif

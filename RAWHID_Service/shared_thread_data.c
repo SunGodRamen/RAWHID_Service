@@ -14,9 +14,17 @@ int initialize_shared_data(shared_thread_data* sharedData) {
         return 0; // Initialization failed
     }
 
-    // Create an event and store its handle in sharedData
-    sharedData->data_ready_event = CreateEvent(NULL, TRUE, FALSE, NULL);
-    if (sharedData->data_ready_event == NULL) {
+    // Initialize data_ready_to_send_event
+    sharedData->data_ready_to_send_event = CreateEvent(NULL, TRUE, FALSE, NULL);
+    if (sharedData->data_ready_to_send_event == NULL) {
+        write_log(_ERROR, "Shared Data - Failed to create event.\n");
+        CloseHandle(sharedData->mutex);  // Clean up the mutex before exiting
+        return 0; // Initialization failed
+    }
+
+    // Initialize response_received_event
+    sharedData->response_received_event = CreateEvent(NULL, TRUE, FALSE, NULL);
+    if (sharedData->response_received_event == NULL) {
         write_log(_ERROR, "Shared Data - Failed to create event.\n");
         CloseHandle(sharedData->mutex);  // Clean up the mutex before exiting
         return 0; // Initialization failed
@@ -55,8 +63,8 @@ void set_message_to_tcp(shared_thread_data* sharedData, const unsigned char* mes
     memcpy(sharedData->message_to_tcp, message, size);
     write_log(_DEBUG, "Shared Data - Wrote message for TCP:");
     write_log_byte_array(_DEBUG, message, size);
-    // Set the event indicating that the message is ready to be sent
-    log_if_failed(SetEvent(sharedData->data_ready_event), "Shared Data - Failed set event for message to TCP");
+    // Set the event
+    SetEvent(sharedData->data_ready_to_send_event);
 
     // Release the mutex
     log_if_failed(ReleaseMutex(sharedData->mutex), "Shared Data - Failed release mutex for message to TCP");
@@ -88,13 +96,31 @@ void set_message_from_tcp(shared_thread_data* sharedData, const unsigned char* m
     write_log(_DEBUG, "Shared Data - Wrote message from TCP:");
     write_log_byte_array(_DEBUG, message, size);
 
-    // Set the event indicating that a new message has been received
-    log_if_failed(SetEvent(sharedData->data_ready_event), "Shared Data - Failed set event for message from TCP");
+    // Set the event
+    SetEvent(sharedData->response_received_event);
 
     // Release the mutex
     log_if_failed(ReleaseMutex(sharedData->mutex), "Shared Data - Failed release mutex for message from TCP");
 
     write_log(_DEBUG, "Shared Data - Mutex released for message from TCP");
+}
+
+BOOL check_message_to_tcp(shared_thread_data* sharedData, unsigned char* buffer, size_t size) {
+    if (WaitForSingleObject(sharedData->data_ready_to_send_event, 0) == WAIT_OBJECT_0) {
+        memcpy(buffer, sharedData->message_to_tcp, size);
+        ResetEvent(sharedData->data_ready_to_send_event);
+        return TRUE;
+    }
+    return FALSE;
+}
+
+BOOL check_message_from_tcp(shared_thread_data* sharedData, unsigned char* buffer, size_t size) {
+    if (WaitForSingleObject(sharedData->response_received_event, 0) == WAIT_OBJECT_0) {
+        memcpy(buffer, sharedData->message_from_tcp, size);
+        ResetEvent(sharedData->response_received_event);
+        return TRUE;
+    }
+    return FALSE;
 }
 
 /**
@@ -110,8 +136,14 @@ void cleanup_shared_data(shared_thread_data* sharedData) {
     }
 
     // Close the event handle if it's valid
-    if (sharedData->data_ready_event) {
-        CloseHandle(sharedData->data_ready_event);
+    if (sharedData->data_ready_to_send_event) {
+        CloseHandle(sharedData->data_ready_to_send_event);
+        write_log(_DEBUG, "Shared Data - Event handle closed.");
+    }
+
+    // Close the event handle if it's valid
+    if (sharedData->response_received_event) {
+        CloseHandle(sharedData->response_received_event);
         write_log(_DEBUG, "Shared Data - Event handle closed.");
     }
 }
