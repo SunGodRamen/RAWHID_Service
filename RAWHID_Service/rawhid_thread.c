@@ -50,6 +50,7 @@ DWORD WINAPI rawhid_device_thread(LPVOID thread_config) {
     shared_thread_data* shared_data = config->shared_data;
     unsigned char message_from_hid[MESSAGE_SIZE_BYTES];
     unsigned char message_from_tcp[MESSAGE_SIZE_BYTES];
+    int messageid = 0;
 
     // Main loop for reading from the device
     while (true) {
@@ -62,6 +63,9 @@ DWORD WINAPI rawhid_device_thread(LPVOID thread_config) {
 
         // If read is successful
         if (bytes_read > 0) {
+            char confirm_message[MESSAGE_SIZE_BYTES];
+            encode_confirmation(confirm_message, ++messageid, 0x01);
+            write_to_handle(handle, confirm_message, MESSAGE_SIZE_BYTES);
             write_log_format(_INFO, "RAWHID Thread - Number of bytes read: %d", bytes_read);
             // Log the byte array using your new function
             write_log_byte_array(_DEBUG, message_from_hid, MESSAGE_SIZE_BYTES);
