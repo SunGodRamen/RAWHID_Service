@@ -2,8 +2,6 @@
 
 // Define constants for maximum number of timeout attempts, confirmation message type, and buffer size
 #define MAX_TIMEOUT_COUNTER 10
-#define CONFIRMATION_TYPE CONFIRM_MESSAGE
-#define BUFFER_SIZE MESSAGE_SIZE_BYTES
 
 /**
  * Thread function for handling TCP client operations.
@@ -35,119 +33,69 @@ DWORD WINAPI tcp_client_thread(LPVOID thread_config) {
         goto cleanup;
     }
 
-    char buffer[BUFFER_SIZE];  // Buffer for incoming/outgoing data
+    char buffer[MESSAGE_SIZE_BYTES];  // Buffer for incoming/outgoing data
     shared_thread_data* shared_data = config->shared_data;  // Pointer to the shared data
 
     // Main client operation loop
     write_log(_INFO, "TCP Client Thread - Entering main client operation loop.");
     while (true) {
-        write_log(_DEBUG, "TCP Client Thread - Waiting for data ready event.");
-        if (WaitForSingleObject(shared_data->data_ready_event, INFINITE) != WAIT_OBJECT_0) {
-            write_log(_ERROR, "TCP Client Thread - Failed to wait for data ready event.");
-            ret = -1;
-            goto cleanup;
-        }
-
-        write_log(_DEBUG, "TCP Client Thread - Acquiring mutex.");
-        if (WaitForSingleObject(shared_data->mutex, INFINITE) != WAIT_OBJECT_0) {
-            write_log(_ERROR, "TCP Client Thread - Failed to acquire mutex.");
-            ret = -1;
-            goto cleanup;
-        }
-
-
         // Read the message to send to TCP server from the shared data
-        unsigned char request[MESSAGE_SIZE_BITS];  // <--- Changed to unsigned char array
-        memcpy(request, shared_data->message_to_tcp, MESSAGE_SIZE_BITS);  // Assuming message_to_tcp is of type unsigned char[]
+        unsigned char request_from_hid[MESSAGE_SIZE_BYTES];
+        if (check_message_to_tcp(shared_data, request_from_hid, MESSAGE_SIZE_BYTES)) {
 
-        // Log the message that will be sent to the server
-        write_log(_DEBUG, "TCP Client Thread - Preparing to send data to TCP server.");
+            // Log the message that will be sent to the server
+            write_log(_DEBUG, "TCP Client Thread - Preparing to send data to TCP server.");
 
-        if (send_to_server(clientSocket, (const char*)request, BUFFER_SIZE) == SOCKET_ERROR) {
-            write_log(_ERROR, "TCP Client Thread - Failed to send data to the server.");
-            ret = -1;
-            goto cleanup;
-        }
-
-        write_log_format(_DEBUG, "TCP Client Thread - Message sent to server, awaiting response.", (const char*)request);
-
-        unsigned char response_data[MESSAGE_SIZE_BITS];
-        MessageType response_type;
-        int timeoutCounter = 0;  // Counter for timeout attempts
-
-        // Loop to read and interpret messages from the server
-        while (true) {
-            int bytesRead = read_message_from_server(clientSocket, (char*)response_data);
-            write_log_format(_INFO, "TCP Client Thread - Received %d bytes from server.", bytesRead);
-            write_log_byte_array(_DEBUG, response_data, bytesRead);
-            if (bytesRead == SOCKET_ERROR) {
-                write_log(_ERROR, "TCP Client Thread - An error occurred while reading from the server.");
-                ret = -1;  // Update return code to indicate error
+            if (send_to_server(clientSocket, (const char*)request_from_hid, MESSAGE_SIZE_BYTES) == SOCKET_ERROR) {
+                write_log(_ERROR, "TCP Client Thread - Failed to send data to the server.");
+                ret = -1;
                 goto cleanup;
             }
 
-            interpret_message(&response_data, &response_type);  // Interpret the received message
+            write_log(_DEBUG, "TCP Client Thread - Message sent to server, awaiting response.");
 
-            // Check if received message is of the confirmation type
-            if (bytesRead == BUFFER_SIZE) {
-                if (response_type == CONFIRMATION_TYPE) {
-                    write_log(_INFO, "TCP Client Thread - Received confirmation from server.");
-                    break;  // Break the loop as we got the confirmation
-                }
-                write_log(_INFO, "TCP Client Thread - Full 64-bit message received from client.");
-            }
-
-            // Check if maximum number of timeout attempts reached
-            if (++timeoutCounter >= MAX_TIMEOUT_COUNTER) {
-                write_log(_ERROR, "TCP Client Thread - Did not receive a proper confirmation from the server.");
-                ret = -1;  // Update return code to indicate error
-                goto cleanup;
-            }
-        }
-
-        // Continue with further processing if response_data is not zero
-        if (response_data) {
-            int totalBytesRead = 0;  // Total bytes read from the server
+            unsigned char confirmation_message[MESSAGE_SIZE_BYTES];
+            MessageType message_type;
             int timeoutCounter = 0;  // Counter for timeout attempts
 
-            // Loop to receive remaining bytes from server
-            while (totalBytesRead < BUFFER_SIZE && timeoutCounter < MAX_TIMEOUT_COUNTER) {
-                int bytesRead = read_message_from_server(clientSocket, (char*)&response_data);
-                write_log_format(_INFO, "TCP Client Thread - Received %d bytes from server.", bytesRead);
-                write_log_byte_array(_DEBUG, response_data, bytesRead);
-                if (bytesRead > 0) {
-                    totalBytesRead += bytesRead;
-                }
-                else {
-                    timeoutCounter++;  // Increment timeout counter on no data
-                }
+            // Read the confirmation message from the server
+            int bytesRead = read_message_from_server(clientSocket, (char*)confirmation_message);
+            write_log_format(_INFO, "TCP Client Thread - Received %d/%d bytes of confirmation from server.", bytesRead, MESSAGE_SIZE_BYTES);
+            write_log_byte_array(_DEBUG, confirmation_message, bytesRead);
 
-                // Check if the buffer is full
-                if (totalBytesRead == BUFFER_SIZE) {
-                    break;  // Exit loop
-                }
+            if (bytesRead == SOCKET_ERROR) {
+                write_log(_ERROR, "TCP Client Thread - An error occurred while reading confirmation from the server.");
+                ret = -1;  // Update return code to indicate error
+                goto cleanup;
             }
 
-            // Log the message received from the server
-            write_log(_DEBUG, "TCP Client Thread - Received message from TCP server");
-            write_log_byte_array(_DEBUG, response_data, totalBytesRead);
+            // Interpret the received message
+            interpret_message(&confirmation_message, &message_type);
+            write_log_format(_INFO, "TCP Client Thread - Interpreted message type: %d, expected confirm type: %d", message_type, CONFIRM_MESSAGE);
 
+            // Continue with further processing if the message type is CONFIRMATION_TYPE
+            if (message_type == CONFIRM_MESSAGE) {
+                unsigned char response[MESSAGE_SIZE_BYTES];
 
-            // Update shared data and release mutex
-            write_log(_DEBUG, "TCP Client Thread - Updating shared data.");
-            memcpy(shared_data->message_from_tcp, response_data, MESSAGE_SIZE_BITS);
+                int bytesRead = read_message_from_server(clientSocket, (char*)&response);
+                if (bytesRead != SOCKET_ERROR) {
 
-            ResetEvent(shared_data->data_ready_event);
-            if (!ReleaseMutex(shared_data->mutex)) {
-                write_log(_ERROR, "TCP Client Thread - Failed to release mutex.");
+                    // Log the message received from the server
+                    write_log(_DEBUG, "TCP Client Thread - Received response from TCP server");
+                    write_log_byte_array(_DEBUG, response, bytesRead);
+
+                    // Update the shared data with the response from the server
+                    set_message_from_tcp(shared_data, response, MESSAGE_SIZE_BYTES);
+                }
+				else {
+					write_log(_ERROR, "TCP Client Thread - An error occurred while reading response from the server.");
+					ret = -1;  // Update return code to indicate error
+					goto cleanup;
+				}
             }
-            write_log(_DEBUG, "TCP Client Thread - Mutex released.");
-        }
-        else {
-            if (!ReleaseMutex(shared_data->mutex)) {
-                write_log(_ERROR, "TCP Client Thread - Failed to release mutex.");
+            else {
+                write_log(_DEBUG, "TCP Client Thread - unexpected response.");
             }
-            write_log(_DEBUG, "TCP Client Thread - Mutex released, no data to update.");
         }
     }
 

@@ -51,8 +51,7 @@ int main() {
     WaitForSingleObject(client_thread, INFINITE);
 
     // Cleanup
-    CloseHandle(shared_data.mutex);
-    CloseHandle(shared_data.data_ready_event);
+    cleanup_shared_data(&shared_data);
     write_log(_INFO, "Main - Cleanup completed");
 
     // Close logger

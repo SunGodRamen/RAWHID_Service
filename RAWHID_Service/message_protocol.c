@@ -1,102 +1,74 @@
 #include "message_protocol.h"
 
-// Pre-defined bit masks and shifts for better readability
-#define REVERSE_BYTE_MASK 0xFF
-#define BYTE_SIZE 8
+// This function interprets the message type
+void interpret_message(const uint8_t* buffer, MessageType* result) {
+    uint8_t flags = buffer[0];
+    write_log_byte_array(_DEBUG, buffer, MESSAGE_SIZE_BYTES);
 
-static void encode_common_fields(uint64_t request_id, uint64_t flags, uint64_t* encoded);
-static void reverse_endianness(uint64_t* message);
-static void reset_encoded_message(uint64_t* encoded);
-
-/**
- * Encodes common fields into a 64-bit message.
- */
-static void encode_common_fields(uint64_t request_id, uint64_t flags, uint64_t* encoded) {
-    reset_encoded_message(encoded);
-    *encoded |= flags;
-    *encoded |= (request_id << 55) & REQUEST_ID_MASK;
-}
-
-/**
- * Resets the 64-bit message to zero.
- */
-static void reset_encoded_message(uint64_t* encoded) {
-    *encoded = 0;
-}
-
-/**
- * Reverses the endianness of a 64-bit message.
- */
-static void reverse_endianness(uint64_t* message) {
-    uint64_t reversed_message = 0;
-    for (int i = 0; i < 8; ++i) {
-        reversed_message <<= BYTE_SIZE;
-        reversed_message |= (*message >> (i * BYTE_SIZE)) & REVERSE_BYTE_MASK;
-    }
-    *message = reversed_message;
-}
-
-/**
- * Interpret the type of the message.
- */
-void interpret_message(uint64_t* message, MessageType* result) {
-    reverse_endianness(message);
-    write_log_uint64_hex(_DEBUG, "Message Protocol - message to interpret", *message);
-
-    if ((*message & MESSAGE_TYPE_MASK) == 0) {
-        write_log(_INFO, "Message Protocol - Interpreted request.");
+    if (flags == 0) {
+        write_log(_DEBUG, "Message type is REQUEST_MESSAGE");
         *result = REQUEST_MESSAGE;
         return;
     }
-
-    if (*message & RESPONSE_TYPE_MASK) {
-        write_log(_INFO, "Message Protocol - Interpreted response.");
-        *result = RESPONSE_MESSAGE;
+    if (flags & 0x01) { // Bit 0 is set
+        if (flags & 0x02) { // Bit 1 is also set
+            write_log(_DEBUG, "Message type is RESPONSE_MESSAGE");
+            *result = RESPONSE_MESSAGE;
+        }
+        else {
+            write_log(_DEBUG, "Message type is CONFIRM_MESSAGE");
+            *result = CONFIRM_MESSAGE;
+        }
     }
     else {
-        write_log(_INFO, "Message Protocol - Interpreted confirm.");
-        *result = CONFIRM_MESSAGE;
+        write_log(_DEBUG, "Message type is UNKNOWN_MESSAGE");
+        *result = UNKNOWN_MESSAGE;
     }
 }
 
-/**
- * Extracts the request ID and data from a response message.
- */
-void extract_request_id_and_data(uint64_t message, uint64_t* request_id, uint64_t* data) {
-    *request_id = (message & REQUEST_ID_MASK) >> 55;
-    *data = message & RESPONSE_DATA_MASK;
-    write_log_uint64_bin(_DEBUG, "Message Protocol - Extracted Request id", *request_id);
-    write_log_uint64_bin(_DEBUG, "Message Protocol - Extracted Data", *data);
+// This function encodes common fields into the first 8 bytes
+static void encode_common_fields(uint8_t* buffer, uint16_t request_id, uint16_t status_code, uint8_t flags) {
+    buffer[0] = flags;
+    buffer[1] = (request_id >> 8) & 0xFF;
+    buffer[2] = request_id & 0xFF;
+    buffer[3] = (status_code >> 8) & 0xFF;
+    buffer[4] = status_code & 0xFF;
 }
 
-/**
- * Extracts the URI from a request message.
- */
-void extract_request_uri(uint64_t message, uint64_t* uri) {
-    *uri = message & URI_MASK;
-    write_log_uint64_bin(_DEBUG, "Message Protocol - Extracted URI", *uri);
+// This function encodes a confirmation message
+void encode_confirmation(uint8_t* buffer, uint16_t request_id, uint16_t status_code) {
+    encode_common_fields(buffer, request_id, status_code, 0x01); // Bit 1 is 0 by default
 }
 
-/**
- * Encodes a confirmation message.
- */
-void encode_confirmation(uint64_t request_id, uint64_t* encoded) {
-    encode_common_fields(request_id, MESSAGE_TYPE_MASK, encoded);
+// This function encodes a request message
+void encode_request(uint8_t* buffer, uint64_t uri) {
+    encode_common_fields(buffer, 0, 0, 0);
+    for (int i = 0; i < 8; i++) {
+        buffer[8 + i] = (uri >> (i * 8)) & 0xFF;
+    }
 }
 
-/**
- * Encodes a request message.
- */
-void encode_request(uint64_t uri, uint64_t* encoded) {
-    reset_encoded_message(encoded);
-    *encoded |= uri & URI_MASK;
-    write_log_uint64_bin(_DEBUG, "Message Protocol - Encoded Request", *encoded);
+// This function encodes a response message
+void encode_response(uint8_t* buffer, uint16_t request_id, uint64_t data) {
+    encode_common_fields(buffer, request_id, 0, 0x03); // 0x03 = 0000 0011 (Bit 0 and Bit 1 are set)
+    for (int i = 0; i < 8; i++) {
+        buffer[8 + i] = (data >> (i * 8)) & 0xFF;
+    }
 }
 
-/**
- * Encodes a response message.
- */
-void encode_response(uint64_t request_id, uint64_t data, uint64_t* encoded) {
-    encode_common_fields(request_id, MESSAGE_TYPE_MASK | RESPONSE_TYPE_MASK, encoded);
-    *encoded |= data & RESPONSE_DATA_MASK;
+// This function extracts the URI from a request message
+void extract_request_uri(const uint8_t* buffer, uint64_t* uri) {
+    *uri = 0;
+    for (int i = 0; i < 8; i++) {
+        *uri |= ((uint64_t)buffer[8 + i]) << (i * 8);
+    }
+}
+
+// This function extracts the request_id and data from a response message
+void extract_request_id_and_data(const uint8_t* buffer, uint16_t* request_id, uint64_t* data) {
+    *request_id = ((uint16_t)buffer[1] << 8) | buffer[2];
+    *data = 0;
+    for (int i = 0; i < 8; i++) {
+        *data |= ((uint64_t)buffer[8 + i]) << (i * 8);
+    }
 }

@@ -1,10 +1,5 @@
 #include "rawhid_thread.h"
 
-#define BUFFER_SIZE MESSAGE_SIZE_BITS
-
-// Function prototype for sending a ping message
-void send_ping(hid_device* handle);
-
 /**
  * The thread function that handles communication with the HID device.
  *
@@ -16,7 +11,6 @@ DWORD WINAPI rawhid_device_thread(LPVOID thread_config) {
     write_log(_INFO, "RAWHID Thread - Entered rawhid_device_thread.");
     int ret = 0; // Variable to store the return status
     hid_device* handle = NULL; // Handle for the HID device
-    unsigned char message[BUFFER_SIZE]; // Message buffer
 
     // Cast thread_config to its proper type
     hid_thread_config* config = (hid_thread_config*)thread_config;
@@ -54,27 +48,41 @@ DWORD WINAPI rawhid_device_thread(LPVOID thread_config) {
 
     // Get the shared data
     shared_thread_data* shared_data = config->shared_data;
+    unsigned char message_from_hid[MESSAGE_SIZE_BYTES];
+    unsigned char message_from_tcp[MESSAGE_SIZE_BYTES];
+    int messageid = 0;
 
     // Main loop for reading from the device
     while (true) {
-        int read_status = hid_read(handle, message, sizeof(message));
-        if (read_status < 0) {
+        int bytes_read = hid_read(handle, message_from_hid, sizeof(message_from_hid));
+        if (bytes_read < 0) {
             write_log_format(_ERROR, "RAWHID Thread - Failed to read from device: %s", hid_error(handle));
             ret = -1;
             goto cleanup;
         }
 
         // If read is successful
-        if (read_status > 0) {
+        if (bytes_read > 0) {
+            char confirm_message[MESSAGE_SIZE_BYTES];
+            encode_confirmation(confirm_message, ++messageid, 0x01);
+            write_to_handle(handle, confirm_message, MESSAGE_SIZE_BYTES);
+            write_log_format(_INFO, "RAWHID Thread - Number of bytes read: %d", bytes_read);
             // Log the byte array using your new function
-            write_log_byte_array(_DEBUG, message, read_status);
+            write_log_byte_array(_DEBUG, message_from_hid, MESSAGE_SIZE_BYTES);
 
             // Set the message to be sent over TCP
-            set_message_to_tcp(shared_data, message, sizeof(message));
-
-            // Send a ping message
-            send_ping(handle);
+            set_message_to_tcp(shared_data, message_from_hid, MESSAGE_SIZE_BYTES);
         }
+
+        // Wait for the response_received_event to be set, signaling a new message from TCP client
+        if (check_message_from_tcp( shared_data, message_from_tcp, MESSAGE_SIZE_BYTES)) {
+
+            // Now you can send this message to HID device
+            if (write_to_handle(handle, message_from_tcp, MESSAGE_SIZE_BYTES) < 0) {
+                write_log(_ERROR, "RAWHID Thread - Failed to send message to device");
+            }
+        }
+
     }
 
 cleanup: // Cleanup label for resource freeing and exit
@@ -90,27 +98,3 @@ cleanup: // Cleanup label for resource freeing and exit
     return ret;
 }
 
-/**
- * Sends a ping message to a HID device.
- *
- * @param handle The handle to the HID device.
- */
-void send_ping(hid_device* handle) {
-    write_log(_INFO, "Preparing to send ping.");
-    // Validate the device handle
-    if (!handle) {
-        write_log(_ERROR, "Handle is NULL, cannot send ping");
-        return;
-    }
-
-    // Prepare the ping message
-    unsigned char ping[] = { 0x00, 0x01 };
-
-    // Attempt to send the ping message
-    if (write_to_handle(handle, ping, sizeof(ping)) < 0) {
-        write_log_format(_ERROR, "Failed to send ping: %s", hid_error(handle));
-    }
-    else {
-        write_log(_INFO, "Ping sent successfully.");
-    }
-}
