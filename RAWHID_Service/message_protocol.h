@@ -36,7 +36,7 @@
  *  - Bytes 3-4:           Zero (unused)
  *  - Bytes 5-7:           Zero (unused)
  *  - Bytes 8-15:          URI (64 bits)
- *  - Bytes 16-63:         Reserved for future use
+ *  - Bytes 16-63:         Reserved for future use *request body
  *
  * ------------------------------
  * Confirmation Message Structure
