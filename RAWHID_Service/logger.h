@@ -10,10 +10,10 @@ extern FILE* logFile;
 extern HANDLE logMutex;
 
 typedef enum {
-    _DEBUG = 1,
-    _INFO,
-    _WARN,
-    _ERROR
+    LOGLEVEL_DEBUG = 1,
+    LOGLEVEL_INFO,
+    LOGLEVEL_WARN,
+    LOGLEVEL_ERROR
 } LogLevel;
 
 void init_logger(char* filePath);

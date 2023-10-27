@@ -3,25 +3,25 @@
 // This function interprets the message type
 void interpret_message(const uint8_t* buffer, MessageType* result) {
     uint8_t flags = buffer[0];
-    write_log_byte_array(_DEBUG, buffer, MESSAGE_SIZE_BYTES);
+    write_log_byte_array(LOGLEVEL_DEBUG, buffer, MESSAGE_SIZE_BYTES);
 
     if (flags == 0) {
-        write_log(_DEBUG, "Message type is REQUEST_MESSAGE");
+        write_log(LOGLEVEL_DEBUG, "Message type is REQUEST_MESSAGE");
         *result = REQUEST_MESSAGE;
         return;
     }
     if (flags & 0x01) { // Bit 0 is set
         if (flags & 0x02) { // Bit 1 is also set
-            write_log(_DEBUG, "Message type is RESPONSE_MESSAGE");
+            write_log(LOGLEVEL_DEBUG, "Message type is RESPONSE_MESSAGE");
             *result = RESPONSE_MESSAGE;
         }
         else {
-            write_log(_DEBUG, "Message type is CONFIRM_MESSAGE");
+            write_log(LOGLEVEL_DEBUG, "Message type is CONFIRM_MESSAGE");
             *result = CONFIRM_MESSAGE;
         }
     }
     else {
-        write_log(_DEBUG, "Message type is UNKNOWN_MESSAGE");
+        write_log(LOGLEVEL_DEBUG, "Message type is UNKNOWN_MESSAGE");
         *result = UNKNOWN_MESSAGE;
     }
 }

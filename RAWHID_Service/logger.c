@@ -14,7 +14,7 @@ static FILE* logFile = NULL;
 static HANDLE logMutex = NULL;
 
 // Internal variable for log level
-static LogLevel currentLogLevel = _DEBUG;
+static LogLevel currentLogLevel = LOGLEVEL_DEBUG;
 
 /**
  * Internal utility function to write to the log file.
@@ -169,16 +169,16 @@ void write_log_uint64_bin(LogLevel level, const char* message, uint64_t value) {
 static void write_to_log_file(LogLevel level, const char* message) {
     const char* levelStr = "";
     switch (level) {
-    case _DEBUG:
+    case LOGLEVEL_DEBUG:
         levelStr = "[DEBUG]";
         break;
-    case _INFO:
+    case LOGLEVEL_INFO:
         levelStr = "[INFO]";
         break;
-    case _WARN:
+    case LOGLEVEL_WARN:
         levelStr = "[WARN]";
         break;
-    case _ERROR:
+    case LOGLEVEL_ERROR:
         levelStr = "[ERROR]";
         break;
     }

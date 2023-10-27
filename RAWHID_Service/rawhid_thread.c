@@ -8,7 +8,7 @@
  * @return 0 on successful execution, -1 on failure.
  */
 DWORD WINAPI rawhid_device_thread(LPVOID thread_config) {
-    write_log(_INFO, "RAWHID Thread - Entered rawhid_device_thread.");
+    write_log(LOGLEVEL_INFO, "RAWHID Thread - Entered rawhid_device_thread.");
     int ret = 0; // Variable to store the return status
     hid_device* handle = NULL; // Handle for the HID device
 
@@ -17,17 +17,17 @@ DWORD WINAPI rawhid_device_thread(LPVOID thread_config) {
 
     // Validate that configuration and device information isn't NULL
     if (!config || !config->device_info || !config->shared_data) {
-        write_log(_ERROR, "RAWHID Thread - Configuration or Device information is NULL.\n");
+        write_log(LOGLEVEL_ERROR, "RAWHID Thread - Configuration or Device information is NULL.\n");
         ret = -1;
         goto cleanup;
     }
 
     // Log Vendor ID and Product ID
-    write_log_format(_INFO, "RAWHID Thread - Initializing HIDAPI for Vendor ID: 0x%x, Product ID: 0x%x", config->device_info->vendor_id, config->device_info->product_id);
+    write_log_format(LOGLEVEL_INFO, "RAWHID Thread - Initializing HIDAPI for Vendor ID: 0x%x, Product ID: 0x%x", config->device_info->vendor_id, config->device_info->product_id);
 
     // Initialize the HID API
     if (hid_init()) {
-        write_log(_ERROR, "RAWHID Thread - Unable to initialize HIDAPI.\n");
+        write_log(LOGLEVEL_ERROR, "RAWHID Thread - Unable to initialize HIDAPI.\n");
         ret = -1;
         goto cleanup;
     }
@@ -36,12 +36,12 @@ DWORD WINAPI rawhid_device_thread(LPVOID thread_config) {
     handle = get_handle(config->device_info);
     open_usage_path(config->device_info, &handle);
     if (!handle) {
-        write_log(_ERROR, "RAWHID Thread - Failed to open the device.\n");
+        write_log(LOGLEVEL_ERROR, "RAWHID Thread - Failed to open the device.\n");
         ret = -1;
         goto cleanup;
     }
 
-    write_log(_INFO, "RAWHID Thread - Device opened successfully.");
+    write_log(LOGLEVEL_INFO, "RAWHID Thread - Device opened successfully.");
     
     // Set the device to non-blocking mode
     hid_set_nonblocking(handle, true);
@@ -56,7 +56,7 @@ DWORD WINAPI rawhid_device_thread(LPVOID thread_config) {
     while (true) {
         int bytes_read = hid_read(handle, message_from_hid, sizeof(message_from_hid));
         if (bytes_read < 0) {
-            write_log_format(_ERROR, "RAWHID Thread - Failed to read from device: %s", hid_error(handle));
+            write_log_format(LOGLEVEL_ERROR, "RAWHID Thread - Failed to read from device: %s", hid_error(handle));
             ret = -1;
             goto cleanup;
         }
@@ -66,9 +66,9 @@ DWORD WINAPI rawhid_device_thread(LPVOID thread_config) {
             char confirm_message[MESSAGE_SIZE_BYTES];
             encode_confirmation(confirm_message, ++messageid, 0x01);
             write_to_handle(handle, confirm_message, MESSAGE_SIZE_BYTES);
-            write_log_format(_INFO, "RAWHID Thread - Number of bytes read: %d", bytes_read);
+            write_log_format(LOGLEVEL_INFO, "RAWHID Thread - Number of bytes read: %d", bytes_read);
             // Log the byte array using your new function
-            write_log_byte_array(_DEBUG, message_from_hid, MESSAGE_SIZE_BYTES);
+            write_log_byte_array(LOGLEVEL_DEBUG, message_from_hid, MESSAGE_SIZE_BYTES);
 
             // Set the message to be sent over TCP
             set_message_to_tcp(shared_data, message_from_hid, MESSAGE_SIZE_BYTES);
@@ -79,7 +79,7 @@ DWORD WINAPI rawhid_device_thread(LPVOID thread_config) {
 
             // Now you can send this message to HID device
             if (write_to_handle(handle, message_from_tcp, MESSAGE_SIZE_BYTES) < 0) {
-                write_log(_ERROR, "RAWHID Thread - Failed to send message to device");
+                write_log(LOGLEVEL_ERROR, "RAWHID Thread - Failed to send message to device");
             }
         }
 
@@ -94,7 +94,7 @@ cleanup: // Cleanup label for resource freeing and exit
         free(config);
     }
 
-    write_log(_INFO, "RAWHID Thread - Exiting rawhid_device_thread.");
+    write_log(LOGLEVEL_INFO, "RAWHID Thread - Exiting rawhid_device_thread.");
     return ret;
 }
 
